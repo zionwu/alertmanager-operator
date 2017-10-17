@@ -1,0 +1,17 @@
+apiVersion: monitoring.rancher.io/v1beta1
+kind: Recipient
+metadata:
+  name: receiver_name
+  labels:
+    test: test
+spec:
+  kind: email
+  email_recipient:
+    address: test
+  slack_recipient:
+    channel: test
+  pagerduty_recipient:
+    service_key: test
+    
+
+

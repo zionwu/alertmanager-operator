@@ -1,0 +1,11 @@
+
+apiVersion: monitoring.rancher.io/v1beta1
+kind: Notifier
+metadata:
+  name: notifier2
+  labels:
+    test: test
+spec:
+  kind: slack
+  slack_config:
+      slack_api_url : test123.slack.com

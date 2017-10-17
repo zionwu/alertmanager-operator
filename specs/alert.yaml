@@ -1,0 +1,21 @@
+apiVersion: monitoring.rancher.io/v1beta1
+kind: Alert
+metadata:
+  name: alert1
+  labels:
+    test: test
+spec:
+  name: asd
+  status: active
+  send_resolved: false
+  severity: critical
+  object: service
+  object_id: 1s1
+  service_rule:
+    unhealthy_percetage: 80
+  recipient_id: testabc
+  
+
+
+
+    
