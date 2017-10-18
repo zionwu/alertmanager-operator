@@ -5,9 +5,24 @@ curl -X DELETE -H 'Accept: application/json' 'http://127.0.0.1:8888/v1/recipient
 curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"recipient_type":"slack", "email_recipient":{}, "slack_recipient":{"channel":"test.abc.com"}, "pagerduty_recipient":{}}' \\n'http://127.0.0.1:8888/v1/recipients'
 
 
-curl -u "${RANCHER_ACCESS_KEY}:${RANCHER_SECRET_KEY}" \
--X POST \
--H 'Accept: application/json' \
--H 'Content-Type: application/json' \
--d '{"severity":"info"}' \
-'http://127.0.0.1:8888/v1/alerts'
+--create notifier 
+
+curl -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"notifier_type":"slack", "slack_config":{"slack_api_url":"zion.slack.com"}}' 'http://127.0.0.1:8888/v5/notifiers'
+
+curl -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"email_config":{"smtp_auth_identity":"smtp_auth_identity", "smtp_auth_identity":"smtp_auth_identity", "smtp_auth_secret":"asdasdf", "smtp_auth_username":"zion@rancher.com", "smtp_from":"zion@rancher.com", "smtp_required_tls":false, "smtp_smarthost":"host123"}, "notifier_type":"email"}' 'http://127.0.0.1:8888/v5/notifiers'
+
+curl -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"notifier_type":"pagerduty", "pagerduty_config":{"pagerduty_url":"zion.slack.com"}}' 'http://127.0.0.1:8888/v5/notifiers'
+
+
+-- delete notifier 
+curl -X DELETE -H 'Accept: application/json' 'http://127.0.0.1:8888/v5/notifiers/6fb3d00e-1c0e-4433-89bd-f8ca1f0f185c'
+
+-- update notifier
+curl -X PUT -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"email_config":{"smtp_auth_identity":"", "smtp_auth_password":"", "smtp_auth_secret":"", "smtp_auth_username":"", "smtp_from":"", "smtp_required_tls":"", "smtp_smarthost":""},   "notifier_type":"slack", "pagerduty_config":{"pagerduty_url":""}, "slack_config":{"slack_api_url":"test.slack.com"}}' \
+'http://127.0.0.1:8888/v5/notifiers/a2fd5d70-b1e0-4b52-b779-0837723c53fe'
+
+-- list 
+curl -X GET -H 'Accept: application/json' -H 'Content-Type: application/json' 'http://127.0.0.1:8888/v5/notifiers'
+
+-- get
+curl -X GET -H 'Accept: application/json' -H 'Content-Type: application/json' 'http://127.0.0.1:8888/v5/notifiers/a2fd5d70-b1e0-4b52-b779-0837723c53fe'

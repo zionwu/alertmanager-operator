@@ -74,6 +74,7 @@ func (s *Server) GetNotifier(rw http.ResponseWriter, req *http.Request) (err err
 	id := mux.Vars(req)["id"]
 	opt := metav1.GetOptions{}
 	n, err := s.NotifierClient.Get(id, opt)
+	
 	if err != nil {
 		return err
 	}

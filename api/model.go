@@ -30,30 +30,30 @@ type Server struct {
 
 type Notifier struct {
 	client.Resource
-	Type            string                      `json:"notifier_type"`
-	SlackConfig     v1beta1.SlackConfigSpec     `json:"slack_config"`
-	EmailConfig     v1beta1.EmailConfigSpec     `json:"email_config"`
-	PagerDutyConfig v1beta1.PagerDutyConfigSpec `json:"pagerduty_config"`
+	NotifierType    string                      `json:"notifierType"`
+	SlackConfig     v1beta1.SlackConfigSpec     `json:"slackConfig"`
+	EmailConfig     v1beta1.EmailConfigSpec     `json:"emailConfig"`
+	PagerDutyConfig v1beta1.PagerDutyConfigSpec `json:"pagerdutyConfig"`
 }
 
 type Alert struct {
 	client.Resource
 	Name         string                  `json:"name,omitempty"`
 	Status       string                  `json:"status,omitempty"`
-	SendResolved bool                    `json:"send_resolved,omitempty"`
+	SendResolved bool                    `json:"sendResolved,omitempty"`
 	Severity     string                  `json:"severity, omitempty"`
 	Object       string                  `json:"object, omitempty"`
-	ObjectID     string                  `json:"object_id, omitempty"`
-	ServiceRule  v1beta1.ServiceRuleSpec `json:"service_rule, omitempty"`
-	RecipientID  string                  `json:"recipient_id, omitempty"`
+	ObjectID     string                  `json:"objectId, omitempty"`
+	ServiceRule  v1beta1.ServiceRuleSpec `json:"serviceRule, omitempty"`
+	RecipientID  string                  `json:"recipientId, omitempty"`
 }
 
 type Recipient struct {
 	client.Resource
-	Type               string                         `json:"recipient_type"`
-	SlackRecipient     v1beta1.SlackRecipientSpec     `json:"slack_recipient"`
-	EmailRecipient     v1beta1.EmailRecipientSpec     `json:"email_recipient"`
-	PagerDutyRecipient v1beta1.PagerDutyRecipientSpec `json:"pagerduty_recipient"`
+	RecipientType      string                         `json:"recipientType"`
+	SlackRecipient     v1beta1.SlackRecipientSpec     `json:"slackRecipient"`
+	EmailRecipient     v1beta1.EmailRecipientSpec     `json:"emailRecipient"`
+	PagerDutyRecipient v1beta1.PagerDutyRecipientSpec `json:"pagerdutyRecipient"`
 }
 
 func NewServer(clientset *kubernetes.Clientset, mclient *v1beta1.MonitoringV1Client) *Server {
@@ -103,26 +103,27 @@ func recipientSchema(recipient *client.Schema) {
 	recipient.CollectionMethods = []string{http.MethodGet, http.MethodPost}
 	recipient.ResourceMethods = []string{http.MethodGet, http.MethodDelete, http.MethodPut}
 
-	recipientType := recipient.ResourceFields["type"]
+	recipientType := recipient.ResourceFields["recipientType"]
 	recipientType.Create = true
 	recipientType.Required = true
 	recipientType.Type = "enum"
 	recipientType.Options = []string{"email", "slack", "pagerduty"}
-	recipient.ResourceFields["type"] = recipientType
+	recipient.ResourceFields["recipientType"] = recipientType
 
 }
 
-func notifierSchema(notifer *client.Schema) {
+func notifierSchema(notifier *client.Schema) {
 
-	notifer.CollectionMethods = []string{http.MethodGet, http.MethodPost}
-	notifer.ResourceMethods = []string{http.MethodGet, http.MethodDelete, http.MethodPut}
+	notifier.CollectionMethods = []string{http.MethodGet, http.MethodPost}
+	notifier.ResourceMethods = []string{http.MethodGet, http.MethodDelete, http.MethodPut}
 
-	notiferType := notifer.ResourceFields["type"]
-	notiferType.Create = true
-	notiferType.Required = true
-	notiferType.Type = "enum"
-	notiferType.Options = []string{"email", "slack", "pagerduty"}
-	notifer.ResourceFields["type"] = notiferType
+	notifierType := notifier.ResourceFields["notifierType"]
+	notifierType.Create = true
+	notifierType.Required = true
+	notifierType.Update = false
+	notifierType.Type = "enum"
+	notifierType.Options = []string{"email", "slack", "pagerduty"}
+	notifier.ResourceFields["notifierType"] = notifierType
 
 }
 
@@ -130,15 +131,14 @@ func toNotifierResource(apiContext *api.ApiContext, n *v1beta1.Notifier) *Notifi
 
 	rn := &Notifier{}
 	rn.Resource = client.Resource{
-		//TODO: decide what should be id
 		Id:      n.Name,
 		Type:    "notifier",
 		Actions: map[string]string{},
 		Links:   map[string]string{},
 	}
 
-	rn.Type = n.Spec.Kind
-	switch rn.Type {
+	rn.NotifierType = n.Spec.Kind
+	switch rn.NotifierType {
 	case "email":
 		rn.EmailConfig = *n.Spec.EmailConfig
 	case "slack":
@@ -146,6 +146,8 @@ func toNotifierResource(apiContext *api.ApiContext, n *v1beta1.Notifier) *Notifi
 	case "pagerduty":
 		rn.PagerDutyConfig = *n.Spec.PagerDutyConfig
 	}
+
+	rn.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("notifier", rn.Id)
 
 	return rn
 }
@@ -158,7 +160,7 @@ func toNotifierCRD(rn *Notifier) *v1beta1.Notifier {
 	}
 
 	spec := v1beta1.NotifierSpec{
-		Kind:            rn.Type,
+		Kind:            rn.NotifierType,
 		EmailConfig:     &rn.EmailConfig,
 		SlackConfig:     &rn.SlackConfig,
 		PagerDutyConfig: &rn.PagerDutyConfig,
@@ -179,8 +181,8 @@ func toRecipientResource(apiContext *api.ApiContext, n *v1beta1.Recipient) *Reci
 		Links:   map[string]string{},
 	}
 
-	rn.Type = n.Spec.Kind
-	switch rn.Type {
+	rn.RecipientType = n.Spec.Kind
+	switch rn.RecipientType {
 	case "email":
 		rn.EmailRecipient = *n.Spec.EmailRecipient
 	case "slack":
@@ -200,7 +202,7 @@ func toRecipientCRD(rn *Recipient) *v1beta1.Recipient {
 	}
 
 	spec := v1beta1.RecipientSpec{
-		Kind:               rn.Type,
+		Kind:               rn.RecipientType,
 		EmailRecipient:     &rn.EmailRecipient,
 		SlackRecipient:     &rn.SlackRecipient,
 		PagerDutyRecipient: &rn.PagerDutyRecipient,

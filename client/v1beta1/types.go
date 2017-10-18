@@ -21,27 +21,27 @@ type NotifierList struct {
 type NotifierSpec struct {
 	PodMetadata     *metav1.ObjectMeta   `json:"podMetadata,omitempty"`
 	Kind            string               `json:"kind,omitempty"`
-	EmailConfig     *EmailConfigSpec     `json:"email_config,omitempty"`
-	SlackConfig     *SlackConfigSpec     `json:"slack_config,omitempty"`
-	PagerDutyConfig *PagerDutyConfigSpec `json:"pagerduty_config,omitempty"`
+	EmailConfig     *EmailConfigSpec     `json:"emailConfig,omitempty"`
+	SlackConfig     *SlackConfigSpec     `json:"slackConfig,omitempty"`
+	PagerDutyConfig *PagerDutyConfigSpec `json:"pagerdutyConfig,omitempty"`
 }
 
 type PagerDutyConfigSpec struct {
-	PagerDutyUrl string `json:"pagerduty_url"`
+	PagerDutyUrl string `json:"pagerdutyUrl"`
 }
 
 type SlackConfigSpec struct {
-	SlackApiUrl string `json:"slack_api_url"`
+	SlackApiUrl string `json:"slackApiUrl"`
 }
 
 type EmailConfigSpec struct {
-	SMTPFrom         string `json:"smtp_from"`
-	SMTPSmartHost    string `json:"smtp_smarthost"`
-	SMTPAuthUserName string `json:"smtp_auth_username"`
-	SMTPAuthPassword string `json:"smtp_auth_password"`
-	SMTPAuthSecret   string `json:"smtp_auth_secret"`
-	SMTPAuthIdentity string `json:"smtp_auth_identity"`
-	SMTPRequireTLS   string `json:"smtp_required_tls"`
+	SMTPFrom         string `json:"smtpFrom"`
+	SMTPSmartHost    string `json:"smtpSmartHost"`
+	SMTPAuthUserName string `json:"smtpAuthUsername"`
+	SMTPAuthPassword string `json:"smtpAuthPassword"`
+	SMTPAuthSecret   string `json:"smtpAuthSecret"`
+	SMTPAuthIdentity string `json:"smtpAuthIdentity"`
+	SMTPRequireTLS   bool   `json:"smtpRequiredTls"`
 }
 
 type NotifierStatus struct {
@@ -66,13 +66,13 @@ type RecipientList struct {
 type RecipientSpec struct {
 	PodMetadata        *metav1.ObjectMeta      `json:"podMetadata,omitempty"`
 	Kind               string                  `json:"kind,omitempty"`
-	EmailRecipient     *EmailRecipientSpec     `json:"email_recipient,omitempty"`
-	SlackRecipient     *SlackRecipientSpec     `json:"slack_recipient,omitempty"`
-	PagerDutyRecipient *PagerDutyRecipientSpec `json:"pagerduty_recipient,omitempty"`
+	EmailRecipient     *EmailRecipientSpec     `json:"emailRecipient,omitempty"`
+	SlackRecipient     *SlackRecipientSpec     `json:"slackRecipient,omitempty"`
+	PagerDutyRecipient *PagerDutyRecipientSpec `json:"pagerdutyRecipient,omitempty"`
 }
 
 type PagerDutyRecipientSpec struct {
-	ServiceKey string `json:"service_key"`
+	ServiceKey string `json:"serviceKey"`
 }
 
 type SlackRecipientSpec struct {
@@ -106,16 +106,16 @@ type AlertSpec struct {
 
 	Name         string          `json:"name,omitempty"`
 	Status       string          `json:"status,omitempty"`
-	SendResolved bool            `json:"send_resolved,omitempty"`
+	SendResolved bool            `json:"sendResolved,omitempty"`
 	Severity     string          `json:"severity, omitempty"`
 	Object       string          `json:"object, omitempty"`
-	ObjectID     string          `json:"object_id, omitempty"`
-	ServiceRule  ServiceRuleSpec `json:"service_rule, omitempty"`
-	RecipientID  string          `json:"recipient_id, omitempty"`
+	ObjectID     string          `json:"objectId, omitempty"`
+	ServiceRule  ServiceRuleSpec `json:"serviceRule, omitempty"`
+	RecipientID  string          `json:"recipientId, omitempty"`
 }
 
 type ServiceRuleSpec struct {
-	UnhealthyPercetage string `json:"unhealthy_percetage, omitempty"`
+	UnhealthyPercetage string `json:"unhealthyPercetage, omitempty"`
 }
 
 type AlertStatus struct {

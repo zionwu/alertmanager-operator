@@ -11,12 +11,23 @@ import (
 
 type HandleFuncWithError func(http.ResponseWriter, *http.Request) error
 
-func HandleError(s *client.Schemas, t HandleFuncWithError) http.Handler {
+//HandleError handle error from operation
+func HandleError(s *client.Schemas, t func(http.ResponseWriter, *http.Request) error) http.Handler {
 	return api.ApiHandler(s, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if err := t(rw, req); err != nil {
-			logrus.Warnf("HTTP handling error %v", err)
-			apiContext := api.GetApiContext(req)
-			apiContext.Write(err)
+			logrus.Errorf("Got Error: %v", err)
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(500)
+
+			e := Error{
+				Resource: client.Resource{
+					Type: "error",
+				},
+				Status:   500,
+				Msg:      err.Error(),
+				BaseType: "error",
+			}
+			api.GetApiContext(req).Write(&e)
 		}
 	}))
 }
