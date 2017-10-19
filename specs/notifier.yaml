@@ -3,7 +3,8 @@ kind: Notifier
 metadata:
   name: notifier3
   labels:
-    test: test
+    environment: default
+    type: email
 spec:
   type: email
   emailConfig:

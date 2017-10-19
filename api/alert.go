@@ -19,7 +19,7 @@ func (s *Server) alertsList(rw http.ResponseWriter, req *http.Request) (err erro
 	}()
 
 	opt := metav1.ListOptions{}
-	l, err := s.AlertClient.List(opt)
+	l, err := s.alertClient.List(opt)
 
 	apiContext := api.GetApiContext(req)
 	resp := &client.GenericCollection{}
@@ -53,14 +53,17 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 
-	//TODO: generate name
 	alert.Id = util.GenerateUUID()
-	n := toAlertCRD(&alert)
-	_, err = s.AlertClient.Create(n)
+	//TODO: get env from request
+	env := "environment"
+	n := toAlertCRD(&alert, env)
+	alertCRD, err := s.alertClient.Create(n)
+	if err != nil {
+		return err
+	}
 
 	//make change to configuration of alert manager
-
-	if err != nil {
+	if err = s.configOperator.AddRoute(alertCRD); err != nil {
 		return err
 	}
 
@@ -74,7 +77,7 @@ func (s *Server) getAlert(rw http.ResponseWriter, req *http.Request) (err error)
 
 	id := mux.Vars(req)["id"]
 	opt := metav1.GetOptions{}
-	n, err := s.AlertClient.Get(id, opt)
+	n, err := s.alertClient.Get(id, opt)
 	if err != nil {
 		return err
 	}
@@ -89,10 +92,13 @@ func (s *Server) deleteAlert(rw http.ResponseWriter, req *http.Request) (err err
 	//apiContext := api.GetApiContext(req)
 	id := mux.Vars(req)["id"]
 	opt := metav1.DeleteOptions{}
-	err = s.AlertClient.Delete(id, &opt)
+	err = s.alertClient.Delete(id, &opt)
 	if err != nil {
 		return err
 	}
+
+	//TODO: delete route in configuration of alert manager
+
 	return nil
 
 }
@@ -109,8 +115,10 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 	alert.Id = id
-	n := toAlertCRD(&alert)
-	_, err = s.AlertClient.Update(n)
+	//TODO: get env from request
+	env := "default"
+	n := toAlertCRD(&alert, env)
+	_, err = s.alertClient.Update(n)
 
 	if err != nil {
 		return err

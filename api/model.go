@@ -5,6 +5,7 @@ import (
 
 	"github.com/rancher/go-rancher/api"
 	"github.com/rancher/go-rancher/client"
+	"github.com/zionwu/alertmanager-operator/alertmanager"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -12,11 +13,12 @@ import (
 )
 
 type Server struct {
-	Clientset       *kubernetes.Clientset
-	Mclient         *v1beta1.MonitoringV1Client
-	NotifierClient  v1beta1.NotifierInterface
-	RecipientClient v1beta1.RecipientInterface
-	AlertClient     v1beta1.AlertInterface
+	clientset       *kubernetes.Clientset
+	mclient         *v1beta1.MonitoringV1Client
+	notifierClient  v1beta1.NotifierInterface
+	recipientClient v1beta1.RecipientInterface
+	alertClient     v1beta1.AlertInterface
+	configOperator  alertmanager.Operator
 }
 
 type Error struct {
@@ -38,14 +40,14 @@ type Notifier struct {
 
 type Alert struct {
 	client.Resource
-	Name         string                  `json:"name,omitempty"`
-	Status       string                  `json:"status,omitempty"`
-	SendResolved bool                    `json:"sendResolved,omitempty"`
-	Severity     string                  `json:"severity, omitempty"`
-	Object       string                  `json:"object, omitempty"`
-	ObjectID     string                  `json:"objectId, omitempty"`
-	ServiceRule  v1beta1.ServiceRuleSpec `json:"serviceRule, omitempty"`
-	RecipientID  string                  `json:"recipientId, omitempty"`
+	Name         string                  `json:"name"`
+	State        string                  `json:"state"`
+	SendResolved bool                    `json:"sendResolved"`
+	Severity     string                  `json:"severity"`
+	Object       string                  `json:"object"`
+	ObjectID     string                  `json:"objectId"`
+	ServiceRule  v1beta1.ServiceRuleSpec `json:"serviceRule"`
+	RecipientID  string                  `json:"recipientId"`
 }
 
 type Recipient struct {
@@ -56,18 +58,21 @@ type Recipient struct {
 	PagerDutyRecipient v1beta1.PagerDutyRecipientSpec `json:"pagerdutyRecipient"`
 }
 
-func NewServer(clientset *kubernetes.Clientset, mclient *v1beta1.MonitoringV1Client) *Server {
+func NewServer(clientset *kubernetes.Clientset, mclient *v1beta1.MonitoringV1Client, alertManagerURL string, alertSecretName string) *Server {
 	//TODO: should not hardcode name space here
 	notifierClient := mclient.Notifiers(k8sapi.NamespaceDefault)
 	recipientClient := mclient.Recipients(k8sapi.NamespaceDefault)
 	alertClient := mclient.Alerts(k8sapi.NamespaceDefault)
 
+	operator := alertmanager.NewOperator(clientset, alertManagerURL, alertSecretName)
+
 	return &Server{
-		Clientset:       clientset,
-		Mclient:         mclient,
-		NotifierClient:  notifierClient,
-		RecipientClient: recipientClient,
-		AlertClient:     alertClient,
+		clientset:       clientset,
+		mclient:         mclient,
+		notifierClient:  notifierClient,
+		recipientClient: recipientClient,
+		alertClient:     alertClient,
+		configOperator:  operator,
 	}
 }
 
@@ -95,8 +100,14 @@ func alertSchema(alert *client.Schema) {
 	severity.Required = true
 	severity.Type = "enum"
 	severity.Options = []string{"info", "warnning", "critical"}
+	severity.Default = "critical"
 	alert.ResourceFields["severity"] = severity
 
+	state := alert.ResourceFields["state"]
+	state.Type = "enum"
+	state.Default = "inactive"
+	state.Options = []string{"active", "inactive"}
+	alert.ResourceFields["state"] = state
 }
 
 func recipientSchema(recipient *client.Schema) {
@@ -110,13 +121,12 @@ func recipientSchema(recipient *client.Schema) {
 	recipientType.Type = "enum"
 	recipientType.Options = []string{"email", "slack", "pagerduty"}
 	recipient.ResourceFields["recipientType"] = recipientType
-
 }
 
 func notifierSchema(notifier *client.Schema) {
 
-	notifier.CollectionMethods = []string{http.MethodGet, http.MethodPost}
-	notifier.ResourceMethods = []string{http.MethodGet, http.MethodDelete, http.MethodPut}
+	notifier.CollectionMethods = []string{http.MethodGet}
+	notifier.ResourceMethods = []string{http.MethodGet, http.MethodPut}
 
 	notifierType := notifier.ResourceFields["notifierType"]
 	notifierType.Create = true
@@ -125,6 +135,12 @@ func notifierSchema(notifier *client.Schema) {
 	notifierType.Type = "enum"
 	notifierType.Options = []string{"email", "slack", "pagerduty"}
 	notifier.ResourceFields["notifierType"] = notifierType
+	notifier.ResourceActions = map[string]client.Action{
+		"validate": {
+			Input:  "notifier",
+			Output: "notifier",
+		},
+	}
 }
 
 func toNotifierResource(apiContext *api.ApiContext, n *v1beta1.Notifier) *Notifier {
@@ -148,14 +164,19 @@ func toNotifierResource(apiContext *api.ApiContext, n *v1beta1.Notifier) *Notifi
 	}
 
 	rn.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("notifier", rn.Id)
+	rn.Actions["validate"] = apiContext.UrlBuilder.ReferenceLink(rn.Resource) + "?action=validate"
 
 	return rn
 }
 
-func toNotifierCRD(rn *Notifier) *v1beta1.Notifier {
+func toNotifierCRD(rn *Notifier, env string) *v1beta1.Notifier {
 	n := &v1beta1.Notifier{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: rn.Id,
+			Labels: map[string]string{
+				"environment": env,
+				"type":        rn.NotifierType,
+			},
 		},
 	}
 
@@ -196,10 +217,14 @@ func toRecipientResource(apiContext *api.ApiContext, n *v1beta1.Recipient) *Reci
 	return rn
 }
 
-func toRecipientCRD(rn *Recipient) *v1beta1.Recipient {
+func toRecipientCRD(rn *Recipient, env string) *v1beta1.Recipient {
 	n := &v1beta1.Recipient{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: rn.Id,
+			Labels: map[string]string{
+				"environment": env,
+				"type":        rn.RecipientType,
+			},
 		},
 	}
 
@@ -217,7 +242,7 @@ func toRecipientCRD(rn *Recipient) *v1beta1.Recipient {
 func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 	ra := &Alert{
 		Name:         a.Spec.Name,
-		Status:       a.Spec.Status,
+		State:        a.Spec.State,
 		SendResolved: a.Spec.SendResolved,
 		Severity:     a.Spec.Severity,
 		Object:       a.Spec.Object,
@@ -238,17 +263,20 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 	return ra
 }
 
-func toAlertCRD(ra *Alert) *v1beta1.Alert {
+func toAlertCRD(ra *Alert, env string) *v1beta1.Alert {
 	alert := &v1beta1.Alert{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: ra.Id,
+			Labels: map[string]string{
+				"environment": env,
+			},
 		},
 	}
 
 	//TODO: come up with util method for object transfermation
 	spec := v1beta1.AlertSpec{
 		Name:         ra.Name,
-		Status:       ra.Status,
+		State:        ra.State,
 		SendResolved: ra.SendResolved,
 		Severity:     ra.Severity,
 		Object:       ra.Object,

@@ -107,7 +107,7 @@ type AlertSpec struct {
 	PodMetadata *metav1.ObjectMeta `json:"podMetadata,omitempty"`
 
 	Name         string          `json:"name,omitempty"`
-	Status       string          `json:"status,omitempty"`
+	State        string          `json:"state,omitempty"`
 	SendResolved bool            `json:"sendResolved,omitempty"`
 	Severity     string          `json:"severity, omitempty"`
 	Object       string          `json:"object, omitempty"`
@@ -117,7 +117,7 @@ type AlertSpec struct {
 }
 
 type ServiceRuleSpec struct {
-	UnhealthyPercetage string `json:"unhealthyPercetage, omitempty"`
+	UnhealthyPercetage string `json:"unhealthyPercentage, omitempty"`
 }
 
 //TODO: decide the field in status

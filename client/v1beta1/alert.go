@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	AlertsKind = "Alert"
-	AlertName  = "alerts"
+	AlertsKind       = "Alert"
+	AlertName        = "alerts"
+	AlertSinguleName = "alert"
 )
 
 type AlertsGetter interface {
@@ -107,7 +108,7 @@ func (p *alerts) Delete(name string, options *metav1.DeleteOptions) error {
 func (p *alerts) List(opts metav1.ListOptions) (*AlertList, error) {
 	req := p.restClient.Get().
 		Namespace(p.ns).
-		Resource("alerts").
+		Resource(AlertName).
 		// VersionedParams(&options, v1.ParameterCodec)
 		FieldsSelectorParam(nil)
 
@@ -123,7 +124,7 @@ func (p *alerts) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 	r, err := p.restClient.Get().
 		Prefix("watch").
 		Namespace(p.ns).
-		Resource("alerts").
+		Resource(AlertName).
 		// VersionedParams(&options, v1.ParameterCodec).
 		FieldsSelectorParam(nil).
 		Stream()

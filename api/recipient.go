@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -19,7 +20,7 @@ func (s *Server) recipientsList(rw http.ResponseWriter, req *http.Request) (err 
 	}()
 
 	opt := metav1.ListOptions{}
-	l, err := s.RecipientClient.List(opt)
+	l, err := s.recipientClient.List(opt)
 
 	apiContext := api.GetApiContext(req)
 	resp := &client.GenericCollection{}
@@ -54,20 +55,31 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 		return err
 	}
 
-	//TODO: generate name
 	recipient.Id = util.GenerateUUID()
-	n := toRecipientCRD(&recipient)
-	_, err = s.RecipientClient.Create(n)
-	//recipientCRD, err := s.RecipientClient.Create(n)
+	//TODO: get env from request
+	environment := "default"
+	n := toRecipientCRD(&recipient, environment)
+	_, err = s.recipientClient.Create(n)
+	recipientCRD, err := s.recipientClient.Create(n)
 
 	if err != nil {
 		return err
 	}
 
 	//TODO: get the notifier for this recipient
-	//notifier := v1beta1.Notifier{}
+	selector := "environment=" + recipientCRD.Labels["environment"] + "&" + "type=" + recipientCRD.Labels["type"]
+	notifierList, err := s.notifierClient.List(metav1.ListOptions{LabelSelector: selector})
+	if err != nil {
+		return err
+	}
+	if len(notifierList.Items) == 0 {
+		return fmt.Errorf("can not find notifier for %s", recipient.Type)
+	}
+
 	//Change alertmanager configuration
-	//alertmanager.AddReceiver(recipientCRD, notifier, s.Clientset)
+	if err = s.configOperator.AddReceiver(recipientCRD, notifierList.Items[0]); err != nil {
+		return err
+	}
 
 	apiContext.Write(&recipient)
 	return nil
@@ -80,7 +92,7 @@ func (s *Server) getRecipient(rw http.ResponseWriter, req *http.Request) (err er
 
 	id := mux.Vars(req)["id"]
 	opt := metav1.GetOptions{}
-	n, err := s.RecipientClient.Get(id, opt)
+	n, err := s.recipientClient.Get(id, opt)
 	if err != nil {
 		return err
 	}
@@ -95,10 +107,11 @@ func (s *Server) deleteRecipient(rw http.ResponseWriter, req *http.Request) (err
 	//apiContext := api.GetApiContext(req)
 	id := mux.Vars(req)["id"]
 	opt := metav1.DeleteOptions{}
-	err = s.RecipientClient.Delete(id, &opt)
+	err = s.recipientClient.Delete(id, &opt)
 	if err != nil {
 		return err
 	}
+
 	return nil
 
 }
@@ -115,8 +128,10 @@ func (s *Server) updateRecipient(rw http.ResponseWriter, req *http.Request) (err
 		return err
 	}
 	recipient.Id = id
-	n := toRecipientCRD(&recipient)
-	_, err = s.RecipientClient.Update(n)
+	//TODO: get env from request
+	env := "default"
+	n := toRecipientCRD(&recipient, env)
+	_, err = s.recipientClient.Update(n)
 
 	if err != nil {
 		return err

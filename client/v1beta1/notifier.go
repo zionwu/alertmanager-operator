@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	NotifiersKind = "Notifier"
-	NotifierName  = "notifiers"
+	NotifiersKind        = "Notifier"
+	NotifierName         = "notifiers"
+	NotifierSingularName = "notifier"
 )
 
 type NotifiersGetter interface {
@@ -107,7 +108,7 @@ func (p *notifiers) Delete(name string, options *metav1.DeleteOptions) error {
 func (p *notifiers) List(opts metav1.ListOptions) (*NotifierList, error) {
 	req := p.restClient.Get().
 		Namespace(p.ns).
-		Resource("notifiers").
+		Resource(NotifierName).
 		// VersionedParams(&options, v1.ParameterCodec)
 		FieldsSelectorParam(nil)
 
@@ -123,7 +124,7 @@ func (p *notifiers) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 	r, err := p.restClient.Get().
 		Prefix("watch").
 		Namespace(p.ns).
-		Resource("notifiers").
+		Resource(NotifierName).
 		// VersionedParams(&options, v1.ParameterCodec).
 		FieldsSelectorParam(nil).
 		Stream()

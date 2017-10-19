@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	RecipientsKind = "Recipient"
-	RecipientName  = "recipients"
+	RecipientsKind        = "Recipient"
+	RecipientName         = "recipients"
+	RecipientSingularName = "recipient"
 )
 
 type RecipientsGetter interface {
@@ -107,7 +108,7 @@ func (p *recipients) Delete(name string, options *metav1.DeleteOptions) error {
 func (p *recipients) List(opts metav1.ListOptions) (*RecipientList, error) {
 	req := p.restClient.Get().
 		Namespace(p.ns).
-		Resource("recipients").
+		Resource(RecipientName).
 		// VersionedParams(&options, v1.ParameterCodec)
 		FieldsSelectorParam(nil)
 
@@ -123,7 +124,7 @@ func (p *recipients) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 	r, err := p.restClient.Get().
 		Prefix("watch").
 		Namespace(p.ns).
-		Resource("recipients").
+		Resource(RecipientName).
 		// VersionedParams(&options, v1.ParameterCodec).
 		FieldsSelectorParam(nil).
 		Stream()

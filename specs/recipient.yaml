@@ -3,15 +3,16 @@ kind: Recipient
 metadata:
   name: receiver_name
   labels:
-    test: test
+    environment: default
+    type: email
 spec:
-  kind: email
-  email_recipient:
+  type: email
+  emailRecipient:
     address: test
-  slack_recipient:
+  slackRecipient:
     channel: test
-  pagerduty_recipient:
-    service_key: test
+  pagerdutyRecipient:
+    serviceKey: test
     
 
 

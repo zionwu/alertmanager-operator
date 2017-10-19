@@ -19,7 +19,7 @@ func (s *Server) notifiersList(rw http.ResponseWriter, req *http.Request) (err e
 	}()
 
 	opt := metav1.ListOptions{}
-	l, err := s.NotifierClient.List(opt)
+	l, err := s.notifierClient.List(opt)
 
 	apiContext := api.GetApiContext(req)
 	resp := &client.GenericCollection{}
@@ -53,10 +53,11 @@ func (s *Server) createNotifier(rw http.ResponseWriter, req *http.Request) (err 
 		return err
 	}
 
-	//TODO: generate name
 	notifier.Id = util.GenerateUUID()
-	n := toNotifierCRD(&notifier)
-	_, err = s.NotifierClient.Create(n)
+	//TODO: get env from request
+	env := "environment"
+	n := toNotifierCRD(&notifier, env)
+	_, err = s.notifierClient.Create(n)
 
 	if err != nil {
 		return err
@@ -73,7 +74,7 @@ func (s *Server) getNotifier(rw http.ResponseWriter, req *http.Request) (err err
 
 	id := mux.Vars(req)["id"]
 	opt := metav1.GetOptions{}
-	n, err := s.NotifierClient.Get(id, opt)
+	n, err := s.notifierClient.Get(id, opt)
 
 	if err != nil {
 		return err
@@ -87,12 +88,15 @@ func (s *Server) getNotifier(rw http.ResponseWriter, req *http.Request) (err err
 func (s *Server) deleteNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
 
 	//apiContext := api.GetApiContext(req)
+
+	//TODO: if it is in used, not allow to delete
 	id := mux.Vars(req)["id"]
 	opt := metav1.DeleteOptions{}
-	err = s.NotifierClient.Delete(id, &opt)
+	err = s.notifierClient.Delete(id, &opt)
 	if err != nil {
 		return err
 	}
+
 	return nil
 
 }
@@ -109,14 +113,30 @@ func (s *Server) updateNotifier(rw http.ResponseWriter, req *http.Request) (err 
 		return err
 	}
 	notifier.Id = id
-	n := toNotifierCRD(&notifier)
-	_, err = s.NotifierClient.Update(n)
+	env := "default"
+	n := toNotifierCRD(&notifier, env)
+	_, err = s.notifierClient.Update(n)
 
 	if err != nil {
 		return err
 	}
 
+	selector := "environment=" + n.Labels["environment"] + "&" + "type=" + n.Labels["type"]
+	recipientList, err := s.recipientClient.List(metav1.ListOptions{LabelSelector: selector})
+	if err != nil {
+		return err
+	}
+	if len(recipientList.Items) > 0 {
+		//TODO: update receiver configuration
+		s.configOperator.UpdateReceiver(recipientList, n)
+	}
+
 	apiContext.Write(&notifier)
+	return nil
+
+}
+
+func (s *Server) validateNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
 	return nil
 
 }

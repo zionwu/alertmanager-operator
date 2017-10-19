@@ -56,6 +56,18 @@ func main() {
 			EnvVar: "LISTEN_PORT",
 			Value:  "8888",
 		},
+		cli.StringFlag{
+			Name:   "alertmanager-url",
+			Usage:  "AlertManager access URL",
+			EnvVar: "ALERTMANAGER_URL",
+			Value:  "192.168.99.100:31285",
+		},
+		cli.StringFlag{
+			Name:   "alertmanager-secret-name",
+			Usage:  "AlertManager secret name",
+			EnvVar: "ALERTMANAGER_SECRET_NAME",
+			Value:  "alertmanager-secret",
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -73,6 +85,9 @@ func RunOperator(c *cli.Context) error {
 
 	kubeconfig := c.String("kubeconfig")
 	listenPort := c.String("listen-port")
+	alertmanagerURL := c.String("alertmanager-url")
+	alertmanagerSecretName := c.String("alertmanager-url")
+
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
@@ -84,7 +99,7 @@ func RunOperator(c *cli.Context) error {
 
 	mclient, err := v1beta1.NewForConfig(config)
 
-	router := http.Handler(api.NewRouter(api.NewServer(clientset, mclient)))
+	router := http.Handler(api.NewRouter(api.NewServer(clientset, mclient, alertmanagerURL, alertmanagerSecretName)))
 
 	router = handlers.LoggingHandler(os.Stdout, router)
 	router = handlers.ProxyHeaders(router)
