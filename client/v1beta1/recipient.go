@@ -22,6 +22,7 @@ type RecipientsGetter interface {
 	Recipients(namespace string) RecipientInterface
 }
 
+//only used to check if the recipients struct implements RecipientInterface
 var _ RecipientInterface = &recipients{}
 
 type RecipientInterface interface {

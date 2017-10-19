@@ -20,7 +20,7 @@ type NotifierList struct {
 
 type NotifierSpec struct {
 	PodMetadata     *metav1.ObjectMeta   `json:"podMetadata,omitempty"`
-	Kind            string               `json:"kind,omitempty"`
+	Type            string               `json:"type,omitempty"`
 	EmailConfig     *EmailConfigSpec     `json:"emailConfig,omitempty"`
 	SlackConfig     *SlackConfigSpec     `json:"slackConfig,omitempty"`
 	PagerDutyConfig *PagerDutyConfigSpec `json:"pagerdutyConfig,omitempty"`
@@ -44,6 +44,7 @@ type EmailConfigSpec struct {
 	SMTPRequireTLS   bool   `json:"smtpRequiredTls"`
 }
 
+//TODO: decide the field in status
 type NotifierStatus struct {
 	Paused bool `json:"paused"`
 }
@@ -65,7 +66,7 @@ type RecipientList struct {
 
 type RecipientSpec struct {
 	PodMetadata        *metav1.ObjectMeta      `json:"podMetadata,omitempty"`
-	Kind               string                  `json:"kind,omitempty"`
+	Type               string                  `json:"type,omitempty"`
 	EmailRecipient     *EmailRecipientSpec     `json:"emailRecipient,omitempty"`
 	SlackRecipient     *SlackRecipientSpec     `json:"slackRecipient,omitempty"`
 	PagerDutyRecipient *PagerDutyRecipientSpec `json:"pagerdutyRecipient,omitempty"`
@@ -83,6 +84,7 @@ type EmailRecipientSpec struct {
 	Address string `json:"address"`
 }
 
+//TODO: decide the field in status
 type RecipientStatus struct {
 	Paused bool `json:"paused"`
 }
@@ -118,6 +120,7 @@ type ServiceRuleSpec struct {
 	UnhealthyPercetage string `json:"unhealthyPercetage, omitempty"`
 }
 
+//TODO: decide the field in status
 type AlertStatus struct {
 	Paused bool `json:"paused"`
 }

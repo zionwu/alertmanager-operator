@@ -1,11 +1,16 @@
-
 apiVersion: monitoring.rancher.io/v1beta1
 kind: Notifier
 metadata:
-  name: notifier2
+  name: notifier3
   labels:
     test: test
 spec:
-  kind: slack
-  slack_config:
-      slack_api_url : test123.slack.com
+  type: email
+  emailConfig:
+    smtpAuthIdentity: ffdfdsfrueireuirefsdrerer
+    smtpAuthPassword: '123456'
+    smtpAuthSecret: fdfserfrereioiofiodsfsdfsdfio
+    smtpAuthUsername: viky
+    smtpFrom: rancher@mail.com
+    smtpRequiredTls: false
+    smtpSmartHost: '127.0.0.1'

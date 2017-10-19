@@ -22,6 +22,7 @@ type AlertsGetter interface {
 	Alerts(namespace string) AlertInterface
 }
 
+//only used to check if the alert struct implements AlertInterface
 var _ AlertInterface = &alerts{}
 
 type AlertInterface interface {

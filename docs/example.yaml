@@ -1,0 +1,48 @@
+global:
+route:
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 3h
+  
+  routes:
+    # fist level matches env
+    - match: 
+        env: default
+      routes:
+        # second level matches alert item
+        - match: 
+            alert_id: 12hjdsd
+          receiver: r1
+        - match:
+            alert_id: 123asdf
+          receiver: r2
+    - match: 
+        env: app1
+      routes:
+        - match:
+            alert_id: 12hjd1d
+          receiver:  r3
+# A list of notification receivers.
+receivers:
+  - name: r3
+    email_config:
+      - send_resolved: false 
+        to: zion@rancher.com
+        from: zion@rancher.com
+        smarthost: xxxx
+        auth_username: xxx
+        auth_password: xxx
+        auth_secret: xxxx
+        auth_identity: xxxx
+        require_tls: false
+  - name: r2
+    slack_configs:
+      - channel: '#alerts'
+  - name: r1
+    pagerduty_configs:
+      - service_key: 'key'
+
+
+# A list of inhibition rules.
+#inhibit_rules:
+#  [ - <inhibit_rule> ... ]

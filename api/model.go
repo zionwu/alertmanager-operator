@@ -11,6 +11,14 @@ import (
 	k8sapi "k8s.io/client-go/pkg/api"
 )
 
+type Server struct {
+	Clientset       *kubernetes.Clientset
+	Mclient         *v1beta1.MonitoringV1Client
+	NotifierClient  v1beta1.NotifierInterface
+	RecipientClient v1beta1.RecipientInterface
+	AlertClient     v1beta1.AlertInterface
+}
+
 type Error struct {
 	client.Resource
 	Status   int    `json:"status"`
@@ -18,14 +26,6 @@ type Error struct {
 	Msg      string `json:"message"`
 	Detail   string `json:"detail"`
 	BaseType string `json:"baseType"`
-}
-
-type Server struct {
-	Clientset       *kubernetes.Clientset
-	Mclient         *v1beta1.MonitoringV1Client
-	NotifierClient  v1beta1.NotifierInterface
-	RecipientClient v1beta1.RecipientInterface
-	AlertClient     v1beta1.AlertInterface
 }
 
 type Notifier struct {
@@ -57,10 +57,11 @@ type Recipient struct {
 }
 
 func NewServer(clientset *kubernetes.Clientset, mclient *v1beta1.MonitoringV1Client) *Server {
-	//TODO: hardcode name space here
+	//TODO: should not hardcode name space here
 	notifierClient := mclient.Notifiers(k8sapi.NamespaceDefault)
 	recipientClient := mclient.Recipients(k8sapi.NamespaceDefault)
 	alertClient := mclient.Alerts(k8sapi.NamespaceDefault)
+
 	return &Server{
 		Clientset:       clientset,
 		Mclient:         mclient,
@@ -70,7 +71,7 @@ func NewServer(clientset *kubernetes.Clientset, mclient *v1beta1.MonitoringV1Cli
 	}
 }
 
-func NewSchema() *client.Schemas {
+func newSchema() *client.Schemas {
 	schemas := &client.Schemas{}
 
 	schemas.AddType("apiVersion", client.Resource{})
@@ -124,7 +125,6 @@ func notifierSchema(notifier *client.Schema) {
 	notifierType.Type = "enum"
 	notifierType.Options = []string{"email", "slack", "pagerduty"}
 	notifier.ResourceFields["notifierType"] = notifierType
-
 }
 
 func toNotifierResource(apiContext *api.ApiContext, n *v1beta1.Notifier) *Notifier {
@@ -137,7 +137,7 @@ func toNotifierResource(apiContext *api.ApiContext, n *v1beta1.Notifier) *Notifi
 		Links:   map[string]string{},
 	}
 
-	rn.NotifierType = n.Spec.Kind
+	rn.NotifierType = n.Spec.Type
 	switch rn.NotifierType {
 	case "email":
 		rn.EmailConfig = *n.Spec.EmailConfig
@@ -160,7 +160,7 @@ func toNotifierCRD(rn *Notifier) *v1beta1.Notifier {
 	}
 
 	spec := v1beta1.NotifierSpec{
-		Kind:            rn.NotifierType,
+		Type:            rn.NotifierType,
 		EmailConfig:     &rn.EmailConfig,
 		SlackConfig:     &rn.SlackConfig,
 		PagerDutyConfig: &rn.PagerDutyConfig,
@@ -181,7 +181,7 @@ func toRecipientResource(apiContext *api.ApiContext, n *v1beta1.Recipient) *Reci
 		Links:   map[string]string{},
 	}
 
-	rn.RecipientType = n.Spec.Kind
+	rn.RecipientType = n.Spec.Type
 	switch rn.RecipientType {
 	case "email":
 		rn.EmailRecipient = *n.Spec.EmailRecipient
@@ -190,6 +190,8 @@ func toRecipientResource(apiContext *api.ApiContext, n *v1beta1.Recipient) *Reci
 	case "pagerduty":
 		rn.PagerDutyRecipient = *n.Spec.PagerDutyRecipient
 	}
+
+	rn.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("recipient", rn.Id)
 
 	return rn
 }
@@ -202,7 +204,7 @@ func toRecipientCRD(rn *Recipient) *v1beta1.Recipient {
 	}
 
 	spec := v1beta1.RecipientSpec{
-		Kind:               rn.RecipientType,
+		Type:               rn.RecipientType,
 		EmailRecipient:     &rn.EmailRecipient,
 		SlackRecipient:     &rn.SlackRecipient,
 		PagerDutyRecipient: &rn.PagerDutyRecipient,
@@ -230,6 +232,8 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 		Actions: map[string]string{},
 		Links:   map[string]string{},
 	}
+
+	ra.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("alert", ra.Id)
 
 	return ra
 }

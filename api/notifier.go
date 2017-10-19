@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (s *Server) NotifiersList(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) notifiersList(rw http.ResponseWriter, req *http.Request) (err error) {
 	defer func() {
 		err = errors.Wrap(err, "unable to list notifier")
 	}()
@@ -40,7 +40,7 @@ func (s *Server) NotifiersList(rw http.ResponseWriter, req *http.Request) (err e
 	return nil
 }
 
-func (s *Server) CreateNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) createNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
 	defer func() {
 		err = errors.Wrap(err, "unable to create notifier")
 	}()
@@ -67,14 +67,14 @@ func (s *Server) CreateNotifier(rw http.ResponseWriter, req *http.Request) (err 
 
 }
 
-func (s *Server) GetNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) getNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
 
 	apiContext := api.GetApiContext(req)
 
 	id := mux.Vars(req)["id"]
 	opt := metav1.GetOptions{}
 	n, err := s.NotifierClient.Get(id, opt)
-	
+
 	if err != nil {
 		return err
 	}
@@ -84,7 +84,7 @@ func (s *Server) GetNotifier(rw http.ResponseWriter, req *http.Request) (err err
 
 }
 
-func (s *Server) DeleteNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) deleteNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
 
 	//apiContext := api.GetApiContext(req)
 	id := mux.Vars(req)["id"]
@@ -97,7 +97,7 @@ func (s *Server) DeleteNotifier(rw http.ResponseWriter, req *http.Request) (err 
 
 }
 
-func (s *Server) UpdateNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) updateNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
 
 	apiContext := api.GetApiContext(req)
 

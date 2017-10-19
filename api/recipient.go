@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (s *Server) RecipientsList(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) recipientsList(rw http.ResponseWriter, req *http.Request) (err error) {
 	defer func() {
 		err = errors.Wrap(err, "unable to list recipient")
 	}()
@@ -40,10 +40,11 @@ func (s *Server) RecipientsList(rw http.ResponseWriter, req *http.Request) (err 
 	return nil
 }
 
-func (s *Server) CreateRecipient(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err error) {
 	defer func() {
 		err = errors.Wrap(err, "unable to create recipient")
 	}()
+	//TODO: check if the corresponding notifier exists
 
 	apiContext := api.GetApiContext(req)
 	requestBytes, err := ioutil.ReadAll(req.Body)
@@ -57,17 +58,23 @@ func (s *Server) CreateRecipient(rw http.ResponseWriter, req *http.Request) (err
 	recipient.Id = util.GenerateUUID()
 	n := toRecipientCRD(&recipient)
 	_, err = s.RecipientClient.Create(n)
+	//recipientCRD, err := s.RecipientClient.Create(n)
 
 	if err != nil {
 		return err
 	}
+
+	//TODO: get the notifier for this recipient
+	//notifier := v1beta1.Notifier{}
+	//Change alertmanager configuration
+	//alertmanager.AddReceiver(recipientCRD, notifier, s.Clientset)
 
 	apiContext.Write(&recipient)
 	return nil
 
 }
 
-func (s *Server) GetRecipient(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) getRecipient(rw http.ResponseWriter, req *http.Request) (err error) {
 
 	apiContext := api.GetApiContext(req)
 
@@ -83,7 +90,7 @@ func (s *Server) GetRecipient(rw http.ResponseWriter, req *http.Request) (err er
 
 }
 
-func (s *Server) DeleteRecipient(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) deleteRecipient(rw http.ResponseWriter, req *http.Request) (err error) {
 
 	//apiContext := api.GetApiContext(req)
 	id := mux.Vars(req)["id"]
@@ -96,7 +103,7 @@ func (s *Server) DeleteRecipient(rw http.ResponseWriter, req *http.Request) (err
 
 }
 
-func (s *Server) UpdateRecipient(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) updateRecipient(rw http.ResponseWriter, req *http.Request) (err error) {
 
 	apiContext := api.GetApiContext(req)
 

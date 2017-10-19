@@ -9,11 +9,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rancher/go-rancher/api"
 	"github.com/rancher/go-rancher/client"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"github.com/zionwu/alertmanager-operator/util"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (s *Server) AlertsList(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) alertsList(rw http.ResponseWriter, req *http.Request) (err error) {
 	defer func() {
 		err = errors.Wrap(err, "unable to list alert")
 	}()
@@ -40,7 +40,7 @@ func (s *Server) AlertsList(rw http.ResponseWriter, req *http.Request) (err erro
 	return nil
 }
 
-func (s *Server) CreateAlert(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err error) {
 	defer func() {
 		err = errors.Wrap(err, "unable to create alert")
 	}()
@@ -58,6 +58,8 @@ func (s *Server) CreateAlert(rw http.ResponseWriter, req *http.Request) (err err
 	n := toAlertCRD(&alert)
 	_, err = s.AlertClient.Create(n)
 
+	//make change to configuration of alert manager
+
 	if err != nil {
 		return err
 	}
@@ -66,7 +68,7 @@ func (s *Server) CreateAlert(rw http.ResponseWriter, req *http.Request) (err err
 	return nil
 }
 
-func (s *Server) GetAlert(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) getAlert(rw http.ResponseWriter, req *http.Request) (err error) {
 
 	apiContext := api.GetApiContext(req)
 
@@ -82,7 +84,7 @@ func (s *Server) GetAlert(rw http.ResponseWriter, req *http.Request) (err error)
 
 }
 
-func (s *Server) DeleteAlert(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) deleteAlert(rw http.ResponseWriter, req *http.Request) (err error) {
 
 	//apiContext := api.GetApiContext(req)
 	id := mux.Vars(req)["id"]
@@ -95,7 +97,7 @@ func (s *Server) DeleteAlert(rw http.ResponseWriter, req *http.Request) (err err
 
 }
 
-func (s *Server) UpdateAlert(rw http.ResponseWriter, req *http.Request) (err error) {
+func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err error) {
 
 	apiContext := api.GetApiContext(req)
 

@@ -22,6 +22,7 @@ type NotifiersGetter interface {
 	Notifiers(namespace string) NotifierInterface
 }
 
+//only used to check if the notifiers struct implements NotifierInterface
 var _ NotifierInterface = &notifiers{}
 
 type NotifierInterface interface {
