@@ -27,11 +27,16 @@ curl -X GET -H 'Accept: application/json' -H 'Content-Type: application/json' 'h
 curl -X GET -H 'Accept: application/json' -H 'Content-Type: application/json' 'http://127.0.0.1:8888/v5/notifiers/a2fd5d70-b1e0-4b52-b779-0837723c53fe'
 
 -- create recipient
-curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"recipientType":"slack", "emailRecipient":{"address":""},  "slackRecipient":{"channel":"#test.abc.com"}, "pagerdutyRecipient":{"serviceKey":""}}' 'http://127.0.0.1:8888/v5/recipients'
+curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"recipientType":"slack", "emailRecipient":{"address":""},  "slackRecipient":{"channel":"#mon_test"}, "pagerdutyRecipient":{"serviceKey":""}}' 'http://127.0.0.1:8888/v5/recipients'
 
 
 -- create alert
-curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"name":"rule1", "sendResolved":false, "severity":"info", "object":"service", "objectId":"123455", "serviceRule":{"unhealthyPercentage":"80"}, "recipientId":"2345114d-9f1b-4372-be16-55744f6401da"}' 'http://127.0.0.1:8888/v5/alerts'
+curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"name":"testslack2", "sendResolved":false, "severity":"info", "object":"service", "objectId":"123455", "serviceRule":{"unhealthyPercentage":"80"}, "recipientId":"9e64144a-f5f5-421d-870d-b7730771a3ad"}' 'http://127.0.0.1:8888/v5/alerts'
 
 -- update notifier 
-curl -X PUT -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"emailConfig":{"smtpAuthIdentity":"smtpAuthIdentity", "smtpAuthIdentity":"smtpAuthIdentity", "smtpAuthSecret":"asdasdf", "smtpAuthUsername":"zion@rancher.com", "smtpFrom":"zion@rancher.com", "smtpRequiredTls":false, "smtpSmartHost":"host123"}, "notifierType":"email"}' 'http://127.0.0.1:8888/v5/notifiers'
+curl -X PUT -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"emailConfig":{"smtpAuthIdentity":"smtpAuthIdentity", "smtpAuthIdentity":"smtpAuthIdentity", "smtpAuthSecret":"asdasdf", "smtpAuthUsername":"zion@rancher.com", "smtpFrom":"zion@rancher.com", "smtpRequiredTls":false, "smtpSmartHost":"host123"}, "notifierType":"email"}' 'http://127.0.0.1:8888/v5/notifiers-email'
+curl -X PUT -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"emailConfig":{"smtpAuthIdentity":"", "smtpAuthIdentity":"", "smtpAuthSecret":"", "smtpAuthUsername":"", "smtpFrom":"", "smtpRequiredTls":false, "smtpSmartHost":""}, "slackConfig":{"slackApiUrl":"https://hooks.slack.com/services/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"}, "notifierType":"slack"}' 'http://127.0.0.1:8888/v5/notifiers/notifier-slack'
+
+
+
+curl -X POST -d '[{"labels":{"environment":"default","alert_id":"7d211494-9ff9-45c8-8736-e051853ca34f"},"annotations":{},"startsAt":"2017-10-20T17:17:50.000Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"http://curl.com/ab123"}]' http://192.168.99.100:31285/api/alerts

@@ -7,7 +7,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
-	alertconfig "github.com/prometheus/alertmanager/config"
+	alertconfig "github.com/zionwu/alertmanager-operator/alertmanager/config"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
 	yaml "gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -151,7 +151,7 @@ func (o *operator) addRoute2Config(configStr string, alert *v1beta1.Alert) (stri
 	if envRoute == nil {
 		match := map[string]string{}
 		match[EnvLabelName] = env
-		envRoute = &alertconfig.Route{Match: match, Routes: []*alertconfig.Route{}}
+		envRoute = &alertconfig.Route{Match: match, Routes: []*alertconfig.Route{}, Continue: true}
 		*envRoutes = append(*envRoutes, envRoute)
 	}
 
