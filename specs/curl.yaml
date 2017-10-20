@@ -1,4 +1,3 @@
-curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"recipient_type":"slack", "email_recipient":{}, "slack_recipient":{"channel":"test.abc.com"}, "pagerduty_recipient":{}}' 'http://127.0.0.1:8888/v1/recipients'
 curl -X PUT -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"actions":{}, "email_recipient":{"address":"zionwu@rancher.com"}, "id":"myaddr", "links":{"self":"http://127.0.0.1:8888/v1/recipients/myaddr"}, "pagerduty_recipient":{"service_key":""}, "recipient_type":"email", "slack_recipient":{"channel":""}, "type":"recipient"}' \
 'http://127.0.0.1:8888/v1/recipients/myaddr'
 curl -X DELETE -H 'Accept: application/json' 'http://127.0.0.1:8888/v1/recipients/myaddr'
@@ -9,9 +8,9 @@ curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json
 
 curl -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"notifier_type":"slack", "slack_config":{"slack_api_url":"zion.slack.com"}}' 'http://127.0.0.1:8888/v5/notifiers'
 
-curl -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"email_config":{"smtp_auth_identity":"smtp_auth_identity", "smtp_auth_identity":"smtp_auth_identity", "smtp_auth_secret":"asdasdf", "smtp_auth_username":"zion@rancher.com", "smtp_from":"zion@rancher.com", "smtp_required_tls":false, "smtp_smarthost":"host123"}, "notifier_type":"email"}' 'http://127.0.0.1:8888/v5/notifiers'
+curl -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"emailConfig":{"smtpAuthIdentity":"smtpAuthIdentity", "smtpAuthIdentity":"smtpAuthIdentity", "smtpAuthSecret":"asdasdf", "smtpAuthUsername":"zion@rancher.com", "smtpFrom":"zion@rancher.com", "smtpRequiredTls":false, "smtpSmartHost":"host123"}, "notifierType":"email"}' 'http://127.0.0.1:8888/v5/notifiers'
 
-curl -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"notifier_type":"pagerduty", "pagerduty_config":{"pagerduty_url":"zion.slack.com"}}' 'http://127.0.0.1:8888/v5/notifiers'
+curl -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"notifierType":"pagerduty", "pagerdutyConfig":{"pagerdutyUrl":"zion.slack.com"}}' 'http://127.0.0.1:8888/v5/notifiers'
 
 
 -- delete notifier 
@@ -26,3 +25,13 @@ curl -X GET -H 'Accept: application/json' -H 'Content-Type: application/json' 'h
 
 -- get
 curl -X GET -H 'Accept: application/json' -H 'Content-Type: application/json' 'http://127.0.0.1:8888/v5/notifiers/a2fd5d70-b1e0-4b52-b779-0837723c53fe'
+
+-- create recipient
+curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"recipientType":"slack", "emailRecipient":{"address":""},  "slackRecipient":{"channel":"#test.abc.com"}, "pagerdutyRecipient":{"serviceKey":""}}' 'http://127.0.0.1:8888/v5/recipients'
+
+
+-- create alert
+curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"name":"rule1", "sendResolved":false, "severity":"info", "object":"service", "objectId":"123455", "serviceRule":{"unhealthyPercentage":"80"}, "recipientId":"2345114d-9f1b-4372-be16-55744f6401da"}' 'http://127.0.0.1:8888/v5/alerts'
+
+-- update notifier 
+curl -X PUT -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"emailConfig":{"smtpAuthIdentity":"smtpAuthIdentity", "smtpAuthIdentity":"smtpAuthIdentity", "smtpAuthSecret":"asdasdf", "smtpAuthUsername":"zion@rancher.com", "smtpFrom":"zion@rancher.com", "smtpRequiredTls":false, "smtpSmartHost":"host123"}, "notifierType":"email"}' 'http://127.0.0.1:8888/v5/notifiers'

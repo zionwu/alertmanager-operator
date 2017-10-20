@@ -7,6 +7,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
@@ -106,11 +107,16 @@ func (p *recipients) Delete(name string, options *metav1.DeleteOptions) error {
 
 //func (p *recipients) List(opts metav1.ListOptions) (runtime.Object, error) {
 func (p *recipients) List(opts metav1.ListOptions) (*RecipientList, error) {
+	labelSelector, err := labels.Parse(opts.LabelSelector)
+	if err != nil {
+		return nil, err
+	}
+
 	req := p.restClient.Get().
 		Namespace(p.ns).
 		Resource(RecipientName).
 		// VersionedParams(&options, v1.ParameterCodec)
-		FieldsSelectorParam(nil)
+		FieldsSelectorParam(nil).LabelsSelectorParam(labelSelector)
 
 	b, err := req.DoRaw()
 	if err != nil {

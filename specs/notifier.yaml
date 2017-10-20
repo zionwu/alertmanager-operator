@@ -1,17 +1,43 @@
 apiVersion: monitoring.rancher.io/v1beta1
 kind: Notifier
 metadata:
-  name: notifier3
+  name: notifier-email
   labels:
     environment: default
     type: email
 spec:
   type: email
   emailConfig:
-    smtpAuthIdentity: ffdfdsfrueireuirefsdrerer
-    smtpAuthPassword: '123456'
-    smtpAuthSecret: fdfserfrereioiofiodsfsdfsdfio
+    smtpAuthIdentity: identity1
+    smtpAuthPassword: abc123
+    smtpAuthSecret: secretsxxx
     smtpAuthUsername: viky
-    smtpFrom: rancher@mail.com
+    smtpFrom: zion@rancher.coom
     smtpRequiredTls: false
     smtpSmartHost: '127.0.0.1'
+---
+apiVersion: monitoring.rancher.io/v1beta1
+kind: Notifier
+metadata:
+  name: notifier-slack
+  labels:
+    environment: default
+    type: slack
+spec:
+  type: slack 
+  slackConfig:
+    slackApiUrl: zion.slack.com
+---
+apiVersion: monitoring.rancher.io/v1beta1
+kind: Notifier
+metadata:
+  name: notifier-pagerduty
+  labels:
+    environment: default
+    type: pagerduty
+spec:
+  type: pagerduty 
+  pagerdutyConfig:
+    pagerdutyUrl: zion.pagerduty.com
+
+    

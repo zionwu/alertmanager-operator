@@ -8,24 +8,11 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/gorilla/handlers"
 	"github.com/urfave/cli"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-
 	"github.com/zionwu/alertmanager-operator/api"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
-)
-
-const (
-	sockFile = "/var/run/longhorn/volume-manager.sock"
-
-	FlagEngineImage  = "engine-image"
-	FlagOrchestrator = "orchestrator"
-	FlagETCDServers  = "etcd-servers"
-	FlagETCDPrefix   = "etcd-prefix"
-
-	FlagDockerNetwork = "docker-network"
-
-	EnvEngineImage = "LONGHORN_ENGINE_IMAGE"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 var VERSION = "0.0.1"
@@ -44,6 +31,7 @@ func main() {
 			Usage:  "enable debug logging level",
 			EnvVar: "RANCHER_DEBUG",
 		},
+		//TODO: change the default value to "" so that it will use service account
 		cli.StringFlag{
 			Name:   "kubeconfig, k",
 			Usage:  "(optional) absolute path to the kubeconfig file",
@@ -57,16 +45,23 @@ func main() {
 			Value:  "8888",
 		},
 		cli.StringFlag{
-			Name:   "alertmanager-url",
+			Name:   "alertmanager-url, u",
 			Usage:  "AlertManager access URL",
 			EnvVar: "ALERTMANAGER_URL",
-			Value:  "192.168.99.100:31285",
+			Value:  "http://192.168.99.100:31285",
+		},
+		//TODO: support using config file from local path
+		cli.StringFlag{
+			Name:   "alertmanager-config-file, f",
+			Usage:  "AlertManager config file location, if it is not empty, operator will first try to use local config file",
+			EnvVar: "ALERTMANAGER_CONFIG_FILE",
+			Value:  "alertmanager-config-file",
 		},
 		cli.StringFlag{
-			Name:   "alertmanager-secret-name",
+			Name:   "alertmanager-secret-name, s",
 			Usage:  "AlertManager secret name",
 			EnvVar: "ALERTMANAGER_SECRET_NAME",
-			Value:  "alertmanager-secret",
+			Value:  "alertmanager-config2",
 		},
 	}
 
@@ -86,20 +81,35 @@ func RunOperator(c *cli.Context) error {
 	kubeconfig := c.String("kubeconfig")
 	listenPort := c.String("listen-port")
 	alertmanagerURL := c.String("alertmanager-url")
-	alertmanagerSecretName := c.String("alertmanager-url")
+	alertmanagerSecretName := c.String("alertmanager-secret-name")
+	alertmanagerConfig := c.String("alertmanager-config-file")
 
-	// use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	var config *rest.Config
+	var err error
+	if kubeconfig == "" {
+		if config, err = rest.InClusterConfig(); err != nil {
+			panic(err.Error())
+		}
+
+	} else {
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			panic(err.Error())
+		}
+	}
+
+	if err != nil {
+		panic(err.Error())
+	}
+	// create the clientset
+	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	// create the clientset
-	clientset, err := kubernetes.NewForConfig(config)
-
 	mclient, err := v1beta1.NewForConfig(config)
 
-	router := http.Handler(api.NewRouter(api.NewServer(clientset, mclient, alertmanagerURL, alertmanagerSecretName)))
+	router := http.Handler(api.NewRouter(api.NewServer(clientset, mclient, alertmanagerURL, alertmanagerSecretName, alertmanagerConfig)))
 
 	router = handlers.LoggingHandler(os.Stdout, router)
 	router = handlers.ProxyHeaders(router)

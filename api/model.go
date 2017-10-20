@@ -58,13 +58,13 @@ type Recipient struct {
 	PagerDutyRecipient v1beta1.PagerDutyRecipientSpec `json:"pagerdutyRecipient"`
 }
 
-func NewServer(clientset *kubernetes.Clientset, mclient *v1beta1.MonitoringV1Client, alertManagerURL string, alertSecretName string) *Server {
+func NewServer(clientset *kubernetes.Clientset, mclient *v1beta1.MonitoringV1Client, alertManagerURL string, alertSecretName string, alertmanagerConfig string) *Server {
 	//TODO: should not hardcode name space here
 	notifierClient := mclient.Notifiers(k8sapi.NamespaceDefault)
 	recipientClient := mclient.Recipients(k8sapi.NamespaceDefault)
 	alertClient := mclient.Alerts(k8sapi.NamespaceDefault)
 
-	operator := alertmanager.NewOperator(clientset, alertManagerURL, alertSecretName)
+	operator := alertmanager.NewOperator(clientset, alertManagerURL, alertSecretName, alertmanagerConfig)
 
 	return &Server{
 		clientset:       clientset,
@@ -125,8 +125,8 @@ func recipientSchema(recipient *client.Schema) {
 
 func notifierSchema(notifier *client.Schema) {
 
-	notifier.CollectionMethods = []string{http.MethodGet}
-	notifier.ResourceMethods = []string{http.MethodGet, http.MethodPut}
+	notifier.CollectionMethods = []string{http.MethodGet, http.MethodPost}
+	notifier.ResourceMethods = []string{http.MethodGet, http.MethodPut, http.MethodDelete}
 
 	notifierType := notifier.ResourceFields["notifierType"]
 	notifierType.Create = true

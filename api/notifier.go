@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/go-rancher/client"
 	"github.com/zionwu/alertmanager-operator/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 )
 
 func (s *Server) notifiersList(rw http.ResponseWriter, req *http.Request) (err error) {
@@ -55,7 +56,7 @@ func (s *Server) createNotifier(rw http.ResponseWriter, req *http.Request) (err 
 
 	notifier.Id = util.GenerateUUID()
 	//TODO: get env from request
-	env := "environment"
+	env := "default"
 	n := toNotifierCRD(&notifier, env)
 	_, err = s.notifierClient.Create(n)
 
@@ -121,8 +122,12 @@ func (s *Server) updateNotifier(rw http.ResponseWriter, req *http.Request) (err 
 		return err
 	}
 
-	selector := "environment=" + n.Labels["environment"] + "&" + "type=" + n.Labels["type"]
-	recipientList, err := s.recipientClient.List(metav1.ListOptions{LabelSelector: selector})
+	opt := metav1.ListOptions{
+		LabelSelector: fields.SelectorFromSet(fields.Set(map[string]string{
+			"environment": n.Labels["environment"],
+			"type":        n.Labels["type"],
+		})).String()}
+	recipientList, err := s.recipientClient.List(opt)
 	if err != nil {
 		return err
 	}

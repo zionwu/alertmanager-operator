@@ -55,7 +55,7 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 
 	alert.Id = util.GenerateUUID()
 	//TODO: get env from request
-	env := "environment"
+	env := "default"
 	n := toAlertCRD(&alert, env)
 	alertCRD, err := s.alertClient.Create(n)
 	if err != nil {

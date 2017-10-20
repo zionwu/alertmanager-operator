@@ -1,7 +1,7 @@
 apiVersion: monitoring.rancher.io/v1beta1
 kind: Recipient
 metadata:
-  name: receiver_name
+  name: receiver123
   labels:
     environment: default
     type: email
@@ -13,6 +13,5 @@ spec:
     channel: test
   pagerdutyRecipient:
     serviceKey: test
-    
 
 

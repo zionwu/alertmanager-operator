@@ -1,14 +1,14 @@
 package alertmanager
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
+	"time"
+
+	"github.com/Sirupsen/logrus"
 
 	alertconfig "github.com/prometheus/alertmanager/config"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
-	"github.com/zionwu/alertmanager-operator/util"
 	yaml "gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -27,16 +27,18 @@ type Operator interface {
 }
 
 type operator struct {
-	client          *kubernetes.Clientset
-	alertManagerUrl string
-	alertSecretName string
+	client             *kubernetes.Clientset
+	alertManagerUrl    string
+	alertSecretName    string
+	alertmanagerConfig string
 }
 
-func NewOperator(c *kubernetes.Clientset, alertManagerUrl string, alertSecretName string) Operator {
+func NewOperator(c *kubernetes.Clientset, alertManagerUrl string, alertSecretName string, alertmanagerConfig string) Operator {
 	return &operator{
-		client:          c,
-		alertManagerUrl: alertManagerUrl,
-		alertSecretName: alertSecretName,
+		client:             c,
+		alertManagerUrl:    alertManagerUrl,
+		alertSecretName:    alertSecretName,
+		alertmanagerConfig: alertmanagerConfig,
 	}
 }
 
@@ -51,23 +53,19 @@ func (o *operator) AddReceiver(recipient *v1beta1.Recipient, notifier *v1beta1.N
 	}
 
 	configBtyes := configSecret.Data[ConfigFileName]
-	configStr := util.DecodeBase64(string(configBtyes))
 
-	newConfigStr, err := o.addReceiver2Config(configStr, recipient, notifier)
+	newConfigStr, err := o.addReceiver2Config(string(configBtyes), recipient, notifier)
 	if err != nil {
 		return err
 	}
 
-	endodedConfigStr := util.EncodeBase64(string(newConfigStr))
-	configSecret.Data[ConfigFileName] = []byte(endodedConfigStr)
+	configSecret.Data[ConfigFileName] = []byte(newConfigStr)
 	_, err = sClient.Update(configSecret)
 	if err != nil {
 		return err
 	}
 	//reload alertmanager
-	if err = o.reload(); err != nil {
-		return err
-	}
+	go o.reload()
 
 	return nil
 
@@ -84,23 +82,19 @@ func (o *operator) UpdateReceiver(recipientList *v1beta1.RecipientList, notifier
 	}
 
 	configBtyes := configSecret.Data[ConfigFileName]
-	configStr := util.DecodeBase64(string(configBtyes))
 
-	newConfigStr, err := o.updateReceiver2Config(configStr, recipientList, notifier)
+	newConfigStr, err := o.updateReceiver2Config(string(configBtyes), recipientList, notifier)
 	if err != nil {
 		return err
 	}
 
-	endodedConfigStr := util.EncodeBase64(string(newConfigStr))
-	configSecret.Data[ConfigFileName] = []byte(endodedConfigStr)
+	configSecret.Data[ConfigFileName] = []byte(newConfigStr)
 	_, err = sClient.Update(configSecret)
 	if err != nil {
 		return err
 	}
 	//reload alertmanager
-	if err = o.reload(); err != nil {
-		return err
-	}
+	go o.reload()
 
 	return nil
 
@@ -117,24 +111,19 @@ func (o *operator) AddRoute(alert *v1beta1.Alert) error {
 	}
 
 	configBtyes := configSecret.Data[ConfigFileName]
-	configStr := util.DecodeBase64(string(configBtyes))
 
-	newConfigStr, err := o.addRoute2Config(configStr, alert)
+	newConfigStr, err := o.addRoute2Config(string(configBtyes), alert)
 	if err != nil {
 		return err
 	}
 
-	encodedConfigStr := util.EncodeBase64(string(newConfigStr))
-	configSecret.Data[ConfigFileName] = []byte(encodedConfigStr)
+	configSecret.Data[ConfigFileName] = []byte(newConfigStr)
 	_, err = sClient.Update(configSecret)
 	if err != nil {
 		return err
 	}
 
-	//reload alertmanager
-	if err = o.reload(); err != nil {
-		return err
-	}
+	go o.reload()
 
 	return nil
 
@@ -146,10 +135,13 @@ func (o *operator) addRoute2Config(configStr string, alert *v1beta1.Alert) (stri
 		return "", err
 	}
 
-	envRoutes := config.Route.Routes
+	envRoutes := &config.Route.Routes
+	if envRoutes == nil {
+		*envRoutes = []*alertconfig.Route{}
+	}
 	env := alert.Labels["environment"]
 	var envRoute *alertconfig.Route
-	for _, r := range envRoutes {
+	for _, r := range *envRoutes {
 		if r.Match[EnvLabelName] == env {
 			envRoute = r
 			break
@@ -160,6 +152,7 @@ func (o *operator) addRoute2Config(configStr string, alert *v1beta1.Alert) (stri
 		match := map[string]string{}
 		match[EnvLabelName] = env
 		envRoute = &alertconfig.Route{Match: match, Routes: []*alertconfig.Route{}}
+		*envRoutes = append(*envRoutes, envRoute)
 	}
 
 	match := map[string]string{}
@@ -175,6 +168,8 @@ func (o *operator) addRoute2Config(configStr string, alert *v1beta1.Alert) (stri
 	if err != nil {
 		return "", err
 	}
+
+	logrus.Infof("Config file: %s", string(d))
 
 	return string(d), nil
 }
@@ -219,6 +214,9 @@ func (o *operator) addReceiver2Config(configStr string, recipient *v1beta1.Recip
 
 	//update the secret
 	d, err := yaml.Marshal(config)
+
+	logrus.Infof("Config file: %s", string(d))
+
 	if err != nil {
 		return "", err
 	}
@@ -275,19 +273,21 @@ func (o *operator) updateReceiver2Config(configStr string, recipientList *v1beta
 		return "", err
 	}
 
+	logrus.Infof("Config file: %s", string(d))
+
 	return string(d), nil
 }
 
 func (o *operator) reload() error {
-	//TODO: should not hardcode the url
-	Url, err := url.Parse(o.alertManagerUrl)
+	//TODO: what is the wait time
+	time.Sleep(10000 * time.Millisecond)
+	resp, err := http.Post(o.alertManagerUrl+"/-/reload", "text/html", nil)
+	logrus.Infof("Reload alert manager configuration")
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("%v://%v/-/reload", Url.Scheme, Url.Host)
-
-	resp, err := http.Post(url, "text/html", nil)
 	defer resp.Body.Close()
+
 	_, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
