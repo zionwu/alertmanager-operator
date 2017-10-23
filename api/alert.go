@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -85,6 +86,17 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 
+	if err = s.checkAlertParam(&alert); err != nil {
+		return err
+	}
+
+	//check if the recipient exists
+	_, err = s.recipientClient.Get(alert.RecipientID, metav1.GetOptions{})
+	if err != nil {
+		logrus.Errorf("Error while geting the recipient CRD: %v", err)
+		return errors.Wrap(err, "unable to find the recipient")
+	}
+
 	alert.Id = util.GenerateUUID()
 	//TODO: get env from request
 	env := "default"
@@ -165,6 +177,18 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 		logrus.Errorf("Error while unmarshal the request: %v", err)
 		return err
 	}
+
+	if err = s.checkAlertParam(&alert); err != nil {
+		return err
+	}
+
+	//check if the recipient exists
+	_, err = s.recipientClient.Get(alert.RecipientID, metav1.GetOptions{})
+	if err != nil {
+		logrus.Errorf("Error while geting the recipient CRD: %v", err)
+		return errors.Wrap(err, "unable to find the recipient")
+	}
+
 	alert.Id = id
 	//TODO: get env from request
 	env := "default"
@@ -176,7 +200,35 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 
+	//update the route in configuration of alert manager
+
 	apiContext.Write(&alert)
 	return nil
 
+}
+
+//TODO: check all enum field valid
+func (s *Server) checkAlertParam(alert *Alert) error {
+
+	if alert.Name == "" {
+		return fmt.Errorf("missing name")
+	}
+
+	if alert.RecipientID == "" {
+		return fmt.Errorf("missing RecipientID")
+	}
+
+	if alert.Object == "" {
+		return fmt.Errorf("missing Object")
+	}
+
+	if alert.ObjectID == "" {
+		return fmt.Errorf("missing ObjectID")
+	}
+
+	if alert.ServiceRule.UnhealthyPercetage == "" {
+		return fmt.Errorf("missing percentage")
+	}
+
+	return nil
 }

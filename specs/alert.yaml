@@ -6,7 +6,6 @@ metadata:
     environment: default
 spec:
   name: asd
-  state: active
   sendResolved: false
   severity: critical
   object: service

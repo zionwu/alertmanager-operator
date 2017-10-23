@@ -110,10 +110,40 @@ func alertSchema(alert *client.Schema) {
 	state.Default = "inactive"
 	state.Options = []string{"active", "inactive"}
 	alert.ResourceFields["state"] = state
+
+	name := alert.ResourceFields["name"]
+	name.Create = true
+	name.Update = true
+	alert.ResourceFields["name"] = name
+
+	sendResolved := alert.ResourceFields["sendResolved"]
+	sendResolved.Create = true
+	sendResolved.Update = true
+	sendResolved.Default = false
+	alert.ResourceFields["sendResolved"] = sendResolved
+
+	object := alert.ResourceFields["object"]
+	object.Create = true
+	object.Update = true
+	object.Type = "enum"
+	object.Options = []string{"service", "container", "host", "custom"}
+	alert.ResourceFields["object"] = object
+
+	objectId := alert.ResourceFields["objectId"]
+	objectId.Create = true
+	objectId.Update = true
+	alert.ResourceFields["objectId"] = objectId
+
+	recipientId := alert.ResourceFields["recipientId"]
+	recipientId.Create = true
+	recipientId.Update = true
+	recipientId.Type = "reference[recipient]"
+	alert.ResourceFields["recipientId"] = recipientId
+
 }
 
 func recipientSchema(recipient *client.Schema) {
-
+	//TODO: remove unsued method like post/delete
 	recipient.CollectionMethods = []string{http.MethodGet, http.MethodPost}
 	recipient.ResourceMethods = []string{http.MethodGet, http.MethodDelete, http.MethodPut}
 
@@ -126,7 +156,7 @@ func recipientSchema(recipient *client.Schema) {
 }
 
 func notifierSchema(notifier *client.Schema) {
-
+	//TODO: remove unsued method like post/delete
 	notifier.CollectionMethods = []string{http.MethodGet, http.MethodPost}
 	notifier.ResourceMethods = []string{http.MethodGet, http.MethodPut, http.MethodDelete}
 
@@ -244,7 +274,7 @@ func toRecipientCRD(rn *Recipient, env string) *v1beta1.Recipient {
 func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 	ra := &Alert{
 		Name:         a.Spec.Name,
-		State:        a.Spec.State,
+		State:        "inactive",
 		SendResolved: a.Spec.SendResolved,
 		Severity:     a.Spec.Severity,
 		Object:       a.Spec.Object,
@@ -261,6 +291,8 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 	}
 
 	ra.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("alert", ra.Id)
+	ra.Resource.Links["remove"] = apiContext.UrlBuilder.ReferenceByIdLink("alert", ra.Id)
+	ra.Resource.Links["recipient"] = apiContext.UrlBuilder.ReferenceByIdLink("recipient", ra.RecipientID)
 
 	return ra
 }
@@ -278,7 +310,6 @@ func toAlertCRD(ra *Alert, env string) *v1beta1.Alert {
 	//TODO: come up with util method for object transfermation
 	spec := v1beta1.AlertSpec{
 		Name:         ra.Name,
-		State:        ra.State,
 		SendResolved: ra.SendResolved,
 		Severity:     ra.Severity,
 		Object:       ra.Object,

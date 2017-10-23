@@ -107,7 +107,6 @@ type AlertSpec struct {
 	PodMetadata *metav1.ObjectMeta `json:"podMetadata,omitempty"`
 
 	Name         string          `json:"name,omitempty"`
-	State        string          `json:"state,omitempty"`
 	SendResolved bool            `json:"sendResolved,omitempty"`
 	Severity     string          `json:"severity, omitempty"`
 	Object       string          `json:"object, omitempty"`

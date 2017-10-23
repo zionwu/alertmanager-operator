@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -60,6 +61,10 @@ func (s *Server) createNotifier(rw http.ResponseWriter, req *http.Request) (err 
 
 	if err := json.Unmarshal(requestBytes, &notifier); err != nil {
 		logrus.Error("Error while unmarshal request: %s", err)
+		return err
+	}
+
+	if err = s.checkNotifierParam(&notifier); err != nil {
 		return err
 	}
 
@@ -128,6 +133,11 @@ func (s *Server) updateNotifier(rw http.ResponseWriter, req *http.Request) (err 
 		logrus.Error("Error while unmarshal request %s", err)
 		return err
 	}
+
+	if err = s.checkNotifierParam(&notifier); err != nil {
+		return err
+	}
+
 	notifier.Id = id
 	env := "default"
 	n := toNotifierCRD(&notifier, env)
@@ -161,4 +171,45 @@ func (s *Server) updateNotifier(rw http.ResponseWriter, req *http.Request) (err 
 func (s *Server) validateNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
 	return nil
 
+}
+
+func (s *Server) checkNotifierParam(notifier *Notifier) error {
+	if notifier.NotifierType == "" {
+		return fmt.Errorf("missing nitifierType")
+	}
+
+	if !(notifier.NotifierType == "email" || notifier.NotifierType == "slack" || notifier.NotifierType == "pagerduty") {
+		return fmt.Errorf("not valid value for NotifierType")
+	}
+
+	switch notifier.NotifierType {
+	case "email":
+		if notifier.EmailConfig.SMTPFrom == "" {
+			return fmt.Errorf("missing SMTPFrom")
+		}
+		if notifier.EmailConfig.SMTPAuthIdentity == "" {
+			return fmt.Errorf("missing SMTPAuthIdentity")
+		}
+		if notifier.EmailConfig.SMTPAuthPassword == "" {
+			return fmt.Errorf("missing SMTPAuthPassword")
+		}
+		if notifier.EmailConfig.SMTPAuthSecret == "" {
+			return fmt.Errorf("missing SMTPAuthSecret")
+		}
+		if notifier.EmailConfig.SMTPAuthUserName == "" {
+			return fmt.Errorf("missing SMTPAuthUserName")
+		}
+		if notifier.EmailConfig.SMTPSmartHost == "" {
+			return fmt.Errorf("missing SMTPSmartHost")
+		}
+	case "slack":
+		if notifier.SlackConfig.SlackApiUrl == "" {
+			return fmt.Errorf("missing SlackApiUrl")
+		}
+	case "pagerduty":
+		if notifier.PagerDutyConfig.PagerDutyUrl == "" {
+			return fmt.Errorf("missing PagerDutyUrl")
+		}
+	}
+	return nil
 }
