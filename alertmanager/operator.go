@@ -53,6 +53,7 @@ func (o *operator) AddReceiver(recipient *v1beta1.Recipient, notifier *v1beta1.N
 
 	configSecret, err := sClient.Get(o.alertSecretName, metav1.GetOptions{})
 	if err != nil {
+		logrus.Error("Error while getting secret: %v", err)
 		return err
 	}
 
@@ -60,12 +61,14 @@ func (o *operator) AddReceiver(recipient *v1beta1.Recipient, notifier *v1beta1.N
 
 	newConfigStr, err := o.addReceiver2Config(string(configBtyes), recipient, notifier)
 	if err != nil {
+		logrus.Error("Error while adding config: %v", err)
 		return err
 	}
 
 	configSecret.Data[ConfigFileName] = []byte(newConfigStr)
 	_, err = sClient.Update(configSecret)
 	if err != nil {
+		logrus.Error("Error while updating secret: %v", err)
 		return err
 	}
 	//reload alertmanager
@@ -82,6 +85,7 @@ func (o *operator) UpdateReceiver(recipientList *v1beta1.RecipientList, notifier
 
 	configSecret, err := sClient.Get(o.alertSecretName, metav1.GetOptions{})
 	if err != nil {
+		logrus.Error("Error while getting secret: %v", err)
 		return err
 	}
 
@@ -89,12 +93,14 @@ func (o *operator) UpdateReceiver(recipientList *v1beta1.RecipientList, notifier
 
 	newConfigStr, err := o.updateReceiver2Config(string(configBtyes), recipientList, notifier)
 	if err != nil {
+		logrus.Error("Error while updating receiver: %v", err)
 		return err
 	}
 
 	configSecret.Data[ConfigFileName] = []byte(newConfigStr)
 	_, err = sClient.Update(configSecret)
 	if err != nil {
+		logrus.Error("Error while updating secret: %v", err)
 		return err
 	}
 	//reload alertmanager
@@ -111,6 +117,7 @@ func (o *operator) AddRoute(alert *v1beta1.Alert) error {
 
 	configSecret, err := sClient.Get(o.alertSecretName, metav1.GetOptions{})
 	if err != nil {
+		logrus.Error("Error while getting secret: %v", err)
 		return err
 	}
 
@@ -118,12 +125,14 @@ func (o *operator) AddRoute(alert *v1beta1.Alert) error {
 
 	newConfigStr, err := o.addRoute2Config(string(configBtyes), alert)
 	if err != nil {
+		logrus.Error("Error while adding route: %v", err)
 		return err
 	}
 
 	configSecret.Data[ConfigFileName] = []byte(newConfigStr)
 	_, err = sClient.Update(configSecret)
 	if err != nil {
+		logrus.Error("Error while updating secret: %v", err)
 		return err
 	}
 
@@ -134,6 +143,8 @@ func (o *operator) AddRoute(alert *v1beta1.Alert) error {
 }
 
 func (o *operator) addRoute2Config(configStr string, alert *v1beta1.Alert) (string, error) {
+	logrus.Debug("before adding route: %s", configStr)
+
 	config, err := alertconfig.Load(configStr)
 	if err != nil {
 		return "", err
@@ -173,12 +184,14 @@ func (o *operator) addRoute2Config(configStr string, alert *v1beta1.Alert) (stri
 		return "", err
 	}
 
-	logrus.Infof("Config file: %s", string(d))
+	logrus.Debug("after adding route: %s", string(d))
 
 	return string(d), nil
 }
 
 func (o *operator) addReceiver2Config(configStr string, recipient *v1beta1.Recipient, notifier *v1beta1.Notifier) (string, error) {
+	logrus.Debug("before adding receiver: %s", configStr)
+
 	config, err := alertconfig.Load(configStr)
 	if err != nil {
 		return "", err
@@ -219,7 +232,7 @@ func (o *operator) addReceiver2Config(configStr string, recipient *v1beta1.Recip
 	//update the secret
 	d, err := yaml.Marshal(config)
 
-	logrus.Infof("Config file: %s", string(d))
+	logrus.Debug("after adding receiver: %s", string(d))
 
 	if err != nil {
 		return "", err
@@ -229,6 +242,8 @@ func (o *operator) addReceiver2Config(configStr string, recipient *v1beta1.Recip
 }
 
 func (o *operator) updateReceiver2Config(configStr string, recipientList *v1beta1.RecipientList, notifier *v1beta1.Notifier) (string, error) {
+	logrus.Debug("before updating receiver: %s", configStr)
+
 	config, err := alertconfig.Load(configStr)
 	if err != nil {
 		return "", err
@@ -277,7 +292,7 @@ func (o *operator) updateReceiver2Config(configStr string, recipientList *v1beta
 		return "", err
 	}
 
-	logrus.Infof("Config file: %s", string(d))
+	logrus.Debug("after updating receiver: %s", string(d))
 
 	return string(d), nil
 }
@@ -286,7 +301,7 @@ func (o *operator) reload() error {
 	//TODO: what is the wait time
 	time.Sleep(10000 * time.Millisecond)
 	resp, err := http.Post(o.alertManagerUrl+"/-/reload", "text/html", nil)
-	logrus.Infof("Reload alert manager configuration")
+	logrus.Debug("Reload alert manager configuration")
 	if err != nil {
 		return err
 	}

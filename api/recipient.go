@@ -23,6 +23,9 @@ func (s *Server) recipientsList(rw http.ResponseWriter, req *http.Request) (err 
 
 	opt := metav1.ListOptions{}
 	l, err := s.recipientClient.List(opt)
+	if err != nil {
+		logrus.Errorf("Error while listing recipient CRD: %v", err)
+	}
 
 	apiContext := api.GetApiContext(req)
 	resp := &client.GenericCollection{}
@@ -50,9 +53,15 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 	//TODO: check if the corresponding notifier exists
 	apiContext := api.GetApiContext(req)
 	requestBytes, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		logrus.Errorf("Error while reading request: %v", err)
+		return err
+	}
+
 	recipient := Recipient{}
 
 	if err := json.Unmarshal(requestBytes, &recipient); err != nil {
+		logrus.Errorf("Error while unmarshal request: %v", err)
 		return err
 	}
 
@@ -63,6 +72,7 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 	recipientCRD, err := s.recipientClient.Create(n)
 
 	if err != nil {
+		logrus.Errorf("Error while creating recipient CRD: %v", err)
 		return err
 	}
 
@@ -73,6 +83,7 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 		})).String()}
 	notifierList, err := s.notifierClient.List(opt)
 	if err != nil {
+		logrus.Errorf("Error while listing notifier CRD: %v", err)
 		return err
 	}
 	if len(notifierList.Items) == 0 {
@@ -81,7 +92,7 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 
 	//Change alertmanager configuration
 	if err = s.configOperator.AddReceiver(recipientCRD, notifierList.Items[0]); err != nil {
-		logrus.Error("error creating receiver")
+		logrus.Error("Error while adding receiver")
 		return err
 	}
 
@@ -98,6 +109,7 @@ func (s *Server) getRecipient(rw http.ResponseWriter, req *http.Request) (err er
 	opt := metav1.GetOptions{}
 	n, err := s.recipientClient.Get(id, opt)
 	if err != nil {
+		logrus.Error("Error while adding receiver: %v", err)
 		return err
 	}
 	rn := toRecipientResource(apiContext, n)
@@ -113,6 +125,7 @@ func (s *Server) deleteRecipient(rw http.ResponseWriter, req *http.Request) (err
 	opt := metav1.DeleteOptions{}
 	err = s.recipientClient.Delete(id, &opt)
 	if err != nil {
+		logrus.Error("Error while deleting recipient CRD: %v", err)
 		return err
 	}
 
@@ -126,9 +139,14 @@ func (s *Server) updateRecipient(rw http.ResponseWriter, req *http.Request) (err
 
 	id := mux.Vars(req)["id"]
 	requestBytes, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		logrus.Error("Error while reading request: %v", err)
+		return err
+	}
 	recipient := Recipient{}
 
 	if err := json.Unmarshal(requestBytes, &recipient); err != nil {
+		logrus.Error("Error while unmarshaling request: %v", err)
 		return err
 	}
 	recipient.Id = id
@@ -138,6 +156,7 @@ func (s *Server) updateRecipient(rw http.ResponseWriter, req *http.Request) (err
 	_, err = s.recipientClient.Update(n)
 
 	if err != nil {
+		logrus.Error("Error while updating recipient CRD: %v", err)
 		return err
 	}
 

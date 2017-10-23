@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/Sirupsen/logrus"
+
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/prometheus/alertmanager/dispatch"
@@ -23,6 +25,7 @@ func (s *Server) alertsList(rw http.ResponseWriter, req *http.Request) (err erro
 	opt := metav1.ListOptions{}
 	l, err := s.alertClient.List(opt)
 	if err != nil {
+		logrus.Errorf("Error while listing k8s alert CRD: %v", err)
 		return err
 	}
 
@@ -37,6 +40,7 @@ func (s *Server) alertsList(rw http.ResponseWriter, req *http.Request) (err erro
 	//TODO:should get the env from request
 	activeAlerts, err := s.configOperator.GetActiveAlertListFromAlertManager("enviroment=default")
 	if err != nil {
+		logrus.Errorf("Error while getting active alert: %v", err)
 		return err
 	}
 
@@ -70,9 +74,14 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 
 	apiContext := api.GetApiContext(req)
 	requestBytes, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		logrus.Errorf("Error while reading request body: %v", err)
+		return err
+	}
 	alert := Alert{}
 
 	if err := json.Unmarshal(requestBytes, &alert); err != nil {
+		logrus.Errorf("Error while unmarshal the request: %v", err)
 		return err
 	}
 
@@ -82,11 +91,13 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 	n := toAlertCRD(&alert, env)
 	alertCRD, err := s.alertClient.Create(n)
 	if err != nil {
+		logrus.Errorf("Error while creating k8s CRD: %v", err)
 		return err
 	}
 
 	//make change to configuration of alert manager
 	if err = s.configOperator.AddRoute(alertCRD); err != nil {
+		logrus.Errorf("Error while adding route config: %v", err)
 		return err
 	}
 
@@ -102,12 +113,14 @@ func (s *Server) getAlert(rw http.ResponseWriter, req *http.Request) (err error)
 	opt := metav1.GetOptions{}
 	n, err := s.alertClient.Get(id, opt)
 	if err != nil {
+		logrus.Errorf("Error while getting k8s alert CRD: %v", err)
 		return err
 	}
 
 	//TODO:should get the env from request
 	activeAlerts, err := s.configOperator.GetActiveAlertListFromAlertManager("alert_id=" + n.Name)
 	if err != nil {
+		logrus.Errorf("Error while getting active alert: %v", err)
 		return err
 	}
 	rn := toAlertResource(apiContext, n)
@@ -125,6 +138,7 @@ func (s *Server) deleteAlert(rw http.ResponseWriter, req *http.Request) (err err
 	opt := metav1.DeleteOptions{}
 	err = s.alertClient.Delete(id, &opt)
 	if err != nil {
+		logrus.Errorf("Error while deleting k8s alert CRD", err)
 		return err
 	}
 
@@ -140,9 +154,15 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 
 	id := mux.Vars(req)["id"]
 	requestBytes, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		logrus.Errorf("Error while reading request: %v", err)
+		return err
+	}
+
 	alert := Alert{}
 
 	if err := json.Unmarshal(requestBytes, &alert); err != nil {
+		logrus.Errorf("Error while unmarshal the request: %v", err)
 		return err
 	}
 	alert.Id = id
@@ -152,6 +172,7 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 	_, err = s.alertClient.Update(n)
 
 	if err != nil {
+		logrus.Errorf("Error while updating k8s alert CRD", err)
 		return err
 	}
 
