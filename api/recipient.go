@@ -50,7 +50,7 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 	defer func() {
 		err = errors.Wrap(err, "unable to create recipient")
 	}()
-	//TODO: check if the corresponding notifier exists
+
 	apiContext := api.GetApiContext(req)
 	requestBytes, err := ioutil.ReadAll(req.Body)
 	if err != nil {

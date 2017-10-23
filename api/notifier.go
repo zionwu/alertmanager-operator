@@ -159,7 +159,6 @@ func (s *Server) updateNotifier(rw http.ResponseWriter, req *http.Request) (err 
 		return err
 	}
 	if len(recipientList.Items) > 0 {
-		//TODO: update receiver configuration
 		s.configOperator.UpdateReceiver(recipientList, n)
 	}
 

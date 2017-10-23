@@ -147,6 +147,14 @@ func (s *Server) deleteAlert(rw http.ResponseWriter, req *http.Request) (err err
 
 	//apiContext := api.GetApiContext(req)
 	id := mux.Vars(req)["id"]
+
+	getOpt := metav1.GetOptions{}
+	n, err := s.alertClient.Get(id, getOpt)
+	if err != nil {
+		logrus.Errorf("Error while getting k8s alert CRD: %v", err)
+		return err
+	}
+
 	opt := metav1.DeleteOptions{}
 	err = s.alertClient.Delete(id, &opt)
 	if err != nil {
@@ -154,7 +162,11 @@ func (s *Server) deleteAlert(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 
-	//TODO: delete route in configuration of alert manager
+	//delete route in configuration of alert manager
+	if err = s.configOperator.DeleteRoute(n); err != nil {
+		logrus.Errorf("Error while adding route config: %v", err)
+		return err
+	}
 
 	return nil
 
@@ -201,6 +213,10 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 	}
 
 	//update the route in configuration of alert manager
+	if err = s.configOperator.UpdateRoute(n); err != nil {
+		logrus.Errorf("Error while adding route config: %v", err)
+		return err
+	}
 
 	apiContext.Write(&alert)
 	return nil

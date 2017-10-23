@@ -27,6 +27,8 @@ type Operator interface {
 	AddReceiver(recipient *v1beta1.Recipient, Notifier *v1beta1.Notifier) error
 	UpdateReceiver(recipient *v1beta1.RecipientList, Notifier *v1beta1.Notifier) error
 	AddRoute(alert *v1beta1.Alert) error
+	UpdateRoute(alert *v1beta1.Alert) error
+	DeleteRoute(alert *v1beta1.Alert) error
 	GetActiveAlertListFromAlertManager(filter string) ([]*dispatch.APIAlert, error)
 }
 
@@ -142,6 +144,68 @@ func (o *operator) AddRoute(alert *v1beta1.Alert) error {
 
 }
 
+func (o *operator) UpdateRoute(alert *v1beta1.Alert) error {
+	//1. get configuration from secret
+	//TODO: should not hardcode the namespace
+	sClient := o.client.CoreV1().Secrets("default")
+
+	configSecret, err := sClient.Get(o.alertSecretName, metav1.GetOptions{})
+	if err != nil {
+		logrus.Error("Error while getting secret: %v", err)
+		return err
+	}
+
+	configBtyes := configSecret.Data[ConfigFileName]
+
+	newConfigStr, err := o.updateRoute2Config(string(configBtyes), alert)
+	if err != nil {
+		logrus.Error("Error while adding route: %v", err)
+		return err
+	}
+
+	configSecret.Data[ConfigFileName] = []byte(newConfigStr)
+	_, err = sClient.Update(configSecret)
+	if err != nil {
+		logrus.Error("Error while updating secret: %v", err)
+		return err
+	}
+
+	go o.reload()
+
+	return nil
+}
+
+func (o *operator) DeleteRoute(alert *v1beta1.Alert) error {
+	//1. get configuration from secret
+	//TODO: should not hardcode the namespace
+	sClient := o.client.CoreV1().Secrets("default")
+
+	configSecret, err := sClient.Get(o.alertSecretName, metav1.GetOptions{})
+	if err != nil {
+		logrus.Error("Error while getting secret: %v", err)
+		return err
+	}
+
+	configBtyes := configSecret.Data[ConfigFileName]
+
+	newConfigStr, err := o.deleteRoute2Config(string(configBtyes), alert)
+	if err != nil {
+		logrus.Error("Error while adding route: %v", err)
+		return err
+	}
+
+	configSecret.Data[ConfigFileName] = []byte(newConfigStr)
+	_, err = sClient.Update(configSecret)
+	if err != nil {
+		logrus.Error("Error while updating secret: %v", err)
+		return err
+	}
+
+	go o.reload()
+
+	return nil
+}
+
 func (o *operator) addRoute2Config(configStr string, alert *v1beta1.Alert) (string, error) {
 	logrus.Debug("before adding route: %s", configStr)
 
@@ -185,6 +249,82 @@ func (o *operator) addRoute2Config(configStr string, alert *v1beta1.Alert) (stri
 	}
 
 	logrus.Debug("after adding route: %s", string(d))
+
+	return string(d), nil
+}
+
+func (o *operator) updateRoute2Config(configStr string, alert *v1beta1.Alert) (string, error) {
+	logrus.Debug("before updating route: %s", configStr)
+
+	config, err := alertconfig.Load(configStr)
+	if err != nil {
+		return "", err
+	}
+
+	envRoutes := &config.Route.Routes
+
+	env := alert.Labels["environment"]
+	var envRoute *alertconfig.Route
+	for _, r := range *envRoutes {
+		if r.Match[EnvLabelName] == env {
+			envRoute = r
+			break
+		}
+	}
+
+	for _, route := range envRoute.Routes {
+		if route.Match[AlertIDLabelName] == alert.Name {
+			route.Receiver = alert.Spec.RecipientID
+			break
+		}
+	}
+
+	//update the secret
+	d, err := yaml.Marshal(config)
+	if err != nil {
+		return "", err
+	}
+
+	logrus.Debug("after updating route: %s", string(d))
+
+	return string(d), nil
+}
+
+func (o *operator) deleteRoute2Config(configStr string, alert *v1beta1.Alert) (string, error) {
+	logrus.Debug("before deleting route: %s", configStr)
+
+	config, err := alertconfig.Load(configStr)
+	if err != nil {
+		return "", err
+	}
+
+	envRoutes := &config.Route.Routes
+
+	env := alert.Labels["environment"]
+	var envRoute *alertconfig.Route
+	for _, r := range *envRoutes {
+		if r.Match[EnvLabelName] == env {
+			envRoute = r
+			break
+		}
+	}
+
+	routes := envRoute.Routes
+	for i, route := range routes {
+		if route.Match[AlertIDLabelName] == alert.Name {
+			routes = append(routes[:i], routes[i+1:]...)
+			break
+		}
+	}
+	envRoute.Routes = routes
+
+	//update the secret
+	d, err := yaml.Marshal(config)
+	if err != nil {
+		return "", err
+	}
+
+	logrus.Debug("after deleting route: %s", string(d))
 
 	return string(d), nil
 }
