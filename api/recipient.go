@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/rancher/go-rancher/api"
@@ -80,6 +81,7 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 
 	//Change alertmanager configuration
 	if err = s.configOperator.AddReceiver(recipientCRD, notifierList.Items[0]); err != nil {
+		logrus.Error("error creating receiver")
 		return err
 	}
 

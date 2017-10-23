@@ -1,11 +1,14 @@
 package alertmanager
 
 import (
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/prometheus/alertmanager/dispatch"
 
 	alertconfig "github.com/zionwu/alertmanager-operator/alertmanager/config"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
@@ -24,6 +27,7 @@ type Operator interface {
 	AddReceiver(recipient *v1beta1.Recipient, Notifier *v1beta1.Notifier) error
 	UpdateReceiver(recipient *v1beta1.RecipientList, Notifier *v1beta1.Notifier) error
 	AddRoute(alert *v1beta1.Alert) error
+	GetActiveAlertListFromAlertManager(filter string) ([]*dispatch.APIAlert, error)
 }
 
 type operator struct {
@@ -151,7 +155,7 @@ func (o *operator) addRoute2Config(configStr string, alert *v1beta1.Alert) (stri
 	if envRoute == nil {
 		match := map[string]string{}
 		match[EnvLabelName] = env
-		envRoute = &alertconfig.Route{Match: match, Routes: []*alertconfig.Route{}, Continue: true}
+		envRoute = &alertconfig.Route{Match: match, Routes: []*alertconfig.Route{}}
 		*envRoutes = append(*envRoutes, envRoute)
 	}
 
@@ -294,4 +298,42 @@ func (o *operator) reload() error {
 	}
 
 	return nil
+}
+
+//TODO: decide which package should this function be
+func (o *operator) GetActiveAlertListFromAlertManager(filter string) ([]*dispatch.APIAlert, error) {
+
+	res := struct {
+		Data   []*dispatch.APIAlert `json:"data"`
+		Status string               `json:"status"`
+	}{}
+
+	req, err := http.NewRequest(http.MethodGet, o.alertManagerUrl+"/api/v1/alerts", nil)
+	if err != nil {
+		return nil, err
+	}
+	q := req.URL.Query()
+	q.Add("filter", fmt.Sprintf("{%s}", filter))
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	requestBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(requestBytes, &res); err != nil {
+		return nil, err
+	}
+
+	return res.Data, nil
 }

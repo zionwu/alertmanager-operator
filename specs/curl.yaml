@@ -27,7 +27,7 @@ curl -X GET -H 'Accept: application/json' -H 'Content-Type: application/json' 'h
 curl -X GET -H 'Accept: application/json' -H 'Content-Type: application/json' 'http://127.0.0.1:8888/v5/notifiers/a2fd5d70-b1e0-4b52-b779-0837723c53fe'
 
 -- create recipient
-curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"recipientType":"slack", "emailRecipient":{"address":""},  "slackRecipient":{"channel":"#mon_test"}, "pagerdutyRecipient":{"serviceKey":""}}' 'http://127.0.0.1:8888/v5/recipients'
+curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"recipientType":"email", "emailRecipient":{"address":"zion@rancher.com"},  "slackRecipient":{"channel":"#mon_test"}, "pagerdutyRecipient":{"serviceKey":""}}' 'http://127.0.0.1:8888/v5/recipients'
 
 
 -- create alert
@@ -40,3 +40,8 @@ curl -X PUT -H 'Accept: application/json' -H 'Content-Type: application/json' -d
 
 
 curl -X POST -d '[{"labels":{"environment":"default","alert_id":"7d211494-9ff9-45c8-8736-e051853ca34f"},"annotations":{},"startsAt":"2017-10-20T17:17:50.000Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"http://curl.com/ab123"}]' http://192.168.99.100:31285/api/alerts
+
+
+curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"recipientType":"email", "emailRecipient":{"address":"zion@rancher.com"},  "slackRecipient":{"channel":"#mon_test"}, "pagerdutyRecipient":{"serviceKey":""}}' 'http://127.0.0.1:8888/v5/recipient'
+
+curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"recipientType":"email","emailRecipient":{"address":"test--"},"pagerdutyRecipient":{"serviceKey":null},"slackRecipient":{"channel":null}}' 'http://127.0.0.1:8888/v5/recipient'

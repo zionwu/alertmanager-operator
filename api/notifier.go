@@ -88,8 +88,6 @@ func (s *Server) getNotifier(rw http.ResponseWriter, req *http.Request) (err err
 
 func (s *Server) deleteNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
 
-	//apiContext := api.GetApiContext(req)
-
 	//TODO: if it is in used, not allow to delete
 	id := mux.Vars(req)["id"]
 	opt := metav1.DeleteOptions{}

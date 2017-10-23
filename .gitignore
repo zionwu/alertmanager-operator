@@ -5,3 +5,4 @@
 /.trash-cache
 debug
 alertmanager-operator
+.DS_store

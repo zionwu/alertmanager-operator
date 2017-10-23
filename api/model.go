@@ -104,6 +104,8 @@ func alertSchema(alert *client.Schema) {
 	alert.ResourceFields["severity"] = severity
 
 	state := alert.ResourceFields["state"]
+	state.Create = false
+	state.Update = false
 	state.Type = "enum"
 	state.Default = "inactive"
 	state.Options = []string{"active", "inactive"}

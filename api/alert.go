@@ -7,8 +7,10 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
+	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/rancher/go-rancher/api"
 	"github.com/rancher/go-rancher/client"
+	"github.com/zionwu/alertmanager-operator/alertmanager"
 	"github.com/zionwu/alertmanager-operator/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -20,6 +22,9 @@ func (s *Server) alertsList(rw http.ResponseWriter, req *http.Request) (err erro
 
 	opt := metav1.ListOptions{}
 	l, err := s.alertClient.List(opt)
+	if err != nil {
+		return err
+	}
 
 	apiContext := api.GetApiContext(req)
 	resp := &client.GenericCollection{}
@@ -29,15 +34,33 @@ func (s *Server) alertsList(rw http.ResponseWriter, req *http.Request) (err erro
 		"alert": apiContext.UrlBuilder.Collection("alert"),
 	}
 
+	//TODO:should get the env from request
+	activeAlerts, err := s.configOperator.GetActiveAlertListFromAlertManager("enviroment=default")
+	if err != nil {
+		return err
+	}
+
 	data := []interface{}{}
 	for _, item := range l.Items {
 		rn := toAlertResource(apiContext, item)
+		setAlertState(rn, activeAlerts)
 		data = append(data, rn)
+
 	}
 	resp.Data = data
 	apiContext.Write(resp)
 
 	return nil
+}
+
+func setAlertState(item *Alert, activeAlerts []*dispatch.APIAlert) {
+
+	for _, alert := range activeAlerts {
+		if string(alert.Labels[alertmanager.AlertIDLabelName]) == item.Id {
+			item.State = "active"
+			return
+		}
+	}
 }
 
 func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err error) {
@@ -81,7 +104,15 @@ func (s *Server) getAlert(rw http.ResponseWriter, req *http.Request) (err error)
 	if err != nil {
 		return err
 	}
+
+	//TODO:should get the env from request
+	activeAlerts, err := s.configOperator.GetActiveAlertListFromAlertManager("alert_id=" + n.Name)
+	if err != nil {
+		return err
+	}
 	rn := toAlertResource(apiContext, n)
+	setAlertState(rn, activeAlerts)
+
 	apiContext.WriteResource(rn)
 	return nil
 
