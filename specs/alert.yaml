@@ -1,19 +1,20 @@
 apiVersion: monitoring.rancher.io/v1beta1
 kind: Alert
 metadata:
-  name: alert1
+  name: uuid
   labels:
     environment: default
 spec:
-  name: asd
+  description: asd
   sendResolved: false
   severity: critical
-  object: service
+  object: custom
   objecID: 1s1
+  customAlertRule:
+      rate(http_url) > 100 
   serviceRule:
     unhealthyPercentage: 80
   recipientID: testabc
-  recipientType: email
   
 
 
