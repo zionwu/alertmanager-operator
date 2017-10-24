@@ -11,9 +11,11 @@ The alerting stack consists of 3 compoents: native AlertManager, AlertManager op
 
 The monitroing stack consists of 2 compoents: native Prometheus and Prometheus operator. The Prometheus operator will provides GDAPI for endpoint, stores data to k8s CRD. It will also watch alert CRD for custom alert rules, make change to configuration of Prometheus based on endpoint and custom alert rules.
 
-<br>
+
+The architect:
 ![Architect](./current-architect.png)
-<br>
+
+
 
 ## Status
 The first version of alert manager operator is completed. The intergration bewteen UI and operator is mostly done. User can use UI to configure notifier and add/view/edit alert, and the configuration of alert manager will be generated properly by the operator. If we invokes alert manager's API to send an alert, notification will be sent out (only slack is tested).
@@ -25,7 +27,7 @@ The first version of alert manager operator is completed. The intergration bewte
 #### Notifier
 The notifier is about the configuration for notification server. Currnetly it is per namespace. Once a namespace is created, 3 object of different types will be created by operator. UI will just allow to get/list/upadte notifier. The label is added by the operator and it is used for filtering when calling k8s list method. Data of different namespace are stored in the "kube-system" namespace.
 
-```
+```yaml
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
@@ -179,7 +181,7 @@ Currently UI can't invoke the k8s API server directly, to complete the prototype
 The version is v5 because the service right now is running on local laptop and for UI to decide wheather the calls should go to cattle or local. All methods for the resources are allowed for testing. Some will be removed in the future, for example, only get/list/update is allowed for notifier resource.
 
 The following API are provided:
-```
+```golang
 //framework route
 	r.Methods(http.MethodGet).Path("/").Handler(versionsHandler)
 	r.Methods(http.MethodGet).Path("/v5").Handler(versionHandler)
@@ -279,7 +281,7 @@ The metadata Obsever has not yet been implemented. The original desigin is:
 1. Watch Alert CRD, get the rules to monitor.
 2. Watch Rancher metadata, if any rule is valid, invoke API to send alert.
 3. The API of Alermanager is ttp://127.0.0.1:8888/v5/alerts, and the request body is like:
-```
+```json
 {
    "name":"alert123",
    "sendResolved":false,
@@ -323,7 +325,7 @@ changes:
 2. label is removed
 3. the scope is changed to Cluster
 
-```
+```yaml
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
