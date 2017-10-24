@@ -11,17 +11,10 @@ The alerting stack consists of 3 compoents: native AlertManager, AlertManager op
 
 The monitroing stack consists of 2 compoents: native Prometheus and Prometheus operator. The Prometheus operator will provides GDAPI for endpoint, stores data to k8s CRD. It will also watch alert CRD for custom alert rules, make change to configuration of Prometheus based on endpoint and custom alert rules.    
 
-<<<<<<< HEAD
+The architecture: 
 <br>
 ![Architecture](./current-architecture.png)
 <br>
-=======
-
-The architect:
-![Architect](./current-architect.png)
-
-
->>>>>>> 6ced79b508673648900e82b8e4a92dbcb6ecf732
 
 ## Status
 The first version of alert manager operator is completed. The intergration bewteen UI and operator is mostly done. User can use UI to configure notifier and add/view/edit alert, and the configuration of alert manager will be generated properly by the operator. If we invokes alert manager's API to send an alert, notification will be sent out (only slack is tested).
@@ -78,13 +71,9 @@ metadata:
 spec:
   type: slack
   slackConfig:
-<<<<<<< HEAD
-  	# The Slack webhook URL.
-    slackApiUrl: <secret>
-=======
     # The Slack webhook URL.
-    slackApiUrl: zion.slack.com
->>>>>>> 6ced79b508673648900e82b8e4a92dbcb6ecf732
+    slackApiUrl: <secret>
+
 ---
 apiVersion: monitoring.rancher.io/v1beta1
 kind: Notifier
