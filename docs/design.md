@@ -9,10 +9,10 @@ The monitoring contains two seperate stacks. One is for alerting with built-in m
 
 The alerting stack consists of 3 compoents: native AlertManager, AlertManager operator and metadata watcher. AlertManager operator which provides GDAPI for alert/notifier/recipient, stores data to k8s CRD and makes changes to configuration of alert manager. Metadata watcher watches alert rules in the CRD and watch rancher matadata to check if the any rules is valid, if so sends an alert to the AlertManager.  
 
-The monitroing stack consists of 2 compoents: native Prometheus and Prometheus operator. The Prometheus operator will provides GDAPI for endpoint, stores data to k8s CRD. It will also watch alert CRD for custom alert rules, make change to configuration of Prometheus based on endpoint and custom alert rules.
+The monitroing stack consists of 2 compoents: native Prometheus and Prometheus operator. The Prometheus operator will provides GDAPI for endpoint, stores data to k8s CRD. It will also watch alert CRD for custom alert rules, make change to configuration of Prometheus based on endpoint and custom alert rules.    
 
 <br>
-![Architect](./current-architect.png)
+![Architecture](./current-architecture.png)
 <br>
 
 ## Status
@@ -25,7 +25,7 @@ The first version of alert manager operator is completed. The intergration bewte
 #### Notifier
 The notifier is about the configuration for notification server. Currnetly it is per namespace. Once a namespace is created, 3 object of different types will be created by operator. UI will just allow to get/list/upadte notifier. The label is added by the operator and it is used for filtering when calling k8s list method. Data of different namespace are stored in the "kube-system" namespace.
 
-```
+```yaml
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
@@ -51,8 +51,8 @@ spec:
   emailConfig:
     # SMTP authentication information.
     smtpAuthIdentity: identity1
-    smtpAuthSecret: secretsxxx
-    smtpAuthPassword: abc123
+    smtpAuthSecret: <secret>
+    smtpAuthPassword: <secret>
     smtpAuthUsername: viky
     # The sender address.
     smtpFrom: zion@rancher.coom
@@ -71,7 +71,7 @@ spec:
   type: slack
   slackConfig:
   	# The Slack webhook URL.
-    slackApiUrl: zion.slack.com
+    slackApiUrl: <secret>
 ---
 apiVersion: monitoring.rancher.io/v1beta1
 kind: Notifier
@@ -119,7 +119,7 @@ spec:
   slackRecipient:
     channel: #test
   pagerdutyRecipient:
-    serviceKey: xxxx
+    serviceKey: <secret>
 
 
 ```
@@ -306,7 +306,7 @@ After discussion with Darren, there are a few changes.
 
 The architect:
 <br>
-![New-Architect](./new-architect.png)
+![New-Architecture](./new-architecture.png)
 <br>
 
 1. Rancher metadata is no longer used. Instead k8s metadata is used.
@@ -323,7 +323,7 @@ changes:
 2. label is removed
 3. the scope is changed to Cluster
 
-```
+```yaml
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
@@ -344,8 +344,8 @@ metadata:
 emailConfig:
   # SMTP authentication information.
   smtpAuthIdentity: identity1
-  smtpAuthSecret: secretsxxx
-  smtpAuthPassword: abc123
+  smtpAuthSecret: <secret>
+  smtpAuthPassword: <secret>
   smtpAuthUsername: viky
   # The sender address.
   smtpFrom: zion@rancher.coom
@@ -359,7 +359,7 @@ metadata:
   name: notifier-slack
 slackConfig:
   # The Slack webhook URL.
-  slackApiUrl: zion.slack.com
+  slackApiUrl: <secret>
 ---
 apiVersion: monitoring.rancher.io/v1beta1
 kind: Notifier
@@ -518,3 +518,4 @@ receivers:
 ```
 
 
+g
