@@ -72,7 +72,7 @@ metadata:
 spec:
   type: slack
   slackConfig:
-  	# The Slack webhook URL.
+    # The Slack webhook URL.
     slackApiUrl: zion.slack.com
 ---
 apiVersion: monitoring.rancher.io/v1beta1
