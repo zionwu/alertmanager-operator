@@ -113,7 +113,9 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 
-	apiContext.Write(&alert)
+	res := toAlertResource(apiContext, alertCRD)
+
+	apiContext.Write(res)
 	return nil
 }
 

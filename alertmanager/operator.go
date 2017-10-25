@@ -439,7 +439,7 @@ func (o *operator) updateReceiver2Config(configStr string, recipientList *v1beta
 
 func (o *operator) reload() error {
 	//TODO: what is the wait time
-	time.Sleep(10000 * time.Millisecond)
+	time.Sleep(10 * time.Second)
 	resp, err := http.Post(o.alertManagerUrl+"/-/reload", "text/html", nil)
 	logrus.Debug("Reload alert manager configuration")
 	if err != nil {
