@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api"
+	v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 type Server struct {
@@ -44,10 +45,11 @@ type Alert struct {
 	State        string                  `json:"state"`
 	SendResolved bool                    `json:"sendResolved"`
 	Severity     string                  `json:"severity"`
-	Object       string                  `json:"object"`
+	ObjectType   string                  `json:"objectType"`
 	ObjectID     string                  `json:"objectId"`
 	ServiceRule  v1beta1.ServiceRuleSpec `json:"serviceRule"`
 	RecipientID  string                  `json:"recipientId"`
+	UpdatedTime  string                  `json:"updatedTime"`
 }
 
 type Recipient struct {
@@ -56,6 +58,10 @@ type Recipient struct {
 	SlackRecipient     v1beta1.SlackRecipientSpec     `json:"slackRecipient"`
 	EmailRecipient     v1beta1.EmailRecipientSpec     `json:"emailRecipient"`
 	PagerDutyRecipient v1beta1.PagerDutyRecipientSpec `json:"pagerdutyRecipient"`
+}
+
+type Pod struct {
+	client.Resource
 }
 
 func NewServer(clientset *kubernetes.Clientset, mclient *v1beta1.MonitoringV1Client, alertManagerURL string, alertSecretName string, alertmanagerConfig string) *Server {
@@ -86,8 +92,26 @@ func newSchema() *client.Schemas {
 	notifierSchema(schemas.AddType("notifier", Notifier{}))
 	recipientSchema(schemas.AddType("recipient", Recipient{}))
 	alertSchema(schemas.AddType("alert", Alert{}))
+	podSchema(schemas.AddType("pod", Pod{}))
 
 	return schemas
+}
+
+func podSchema(pod *client.Schema) {
+	pod.CollectionMethods = []string{http.MethodGet}
+}
+
+func toPodResource(apiContext *api.ApiContext, pod *v1.Pod) *Pod {
+	ra := &Pod{}
+	ra.Resource = client.Resource{
+		//TODO: decide what should be id
+		Id:      pod.Name,
+		Type:    "pod",
+		Actions: map[string]string{},
+		Links:   map[string]string{},
+	}
+
+	return ra
 }
 
 func alertSchema(alert *client.Schema) {
@@ -122,12 +146,12 @@ func alertSchema(alert *client.Schema) {
 	sendResolved.Default = false
 	alert.ResourceFields["sendResolved"] = sendResolved
 
-	object := alert.ResourceFields["object"]
+	object := alert.ResourceFields["objectType"]
 	object.Create = true
 	object.Update = true
 	object.Type = "enum"
-	object.Options = []string{"service", "container", "host", "custom"}
-	alert.ResourceFields["object"] = object
+	object.Options = []string{"service", "pod", "host", "custom"}
+	alert.ResourceFields["objectType"] = object
 
 	objectId := alert.ResourceFields["objectId"]
 	objectId.Create = true
@@ -139,6 +163,12 @@ func alertSchema(alert *client.Schema) {
 	recipientId.Update = true
 	recipientId.Type = "reference[recipient]"
 	alert.ResourceFields["recipientId"] = recipientId
+
+	updatedTime := alert.ResourceFields["updatedTime"]
+	updatedTime.Create = false
+	updatedTime.Required = false
+	updatedTime.Type = "date"
+	alert.ResourceFields["updatedTime"] = updatedTime
 
 }
 
@@ -277,7 +307,7 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 		State:        "inactive",
 		SendResolved: a.Spec.SendResolved,
 		Severity:     a.Spec.Severity,
-		Object:       a.Spec.Object,
+		ObjectType:   a.Spec.Object,
 		ObjectID:     a.Spec.ObjectID,
 		ServiceRule:  a.Spec.ServiceRule,
 		RecipientID:  a.Spec.RecipientID,
@@ -312,7 +342,7 @@ func toAlertCRD(ra *Alert, env string) *v1beta1.Alert {
 		Name:         ra.Name,
 		SendResolved: ra.SendResolved,
 		Severity:     ra.Severity,
-		Object:       ra.Object,
+		Object:       ra.ObjectType,
 		ObjectID:     ra.ObjectID,
 		ServiceRule:  ra.ServiceRule,
 		RecipientID:  ra.RecipientID,

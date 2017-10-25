@@ -438,18 +438,28 @@ func (o *operator) updateReceiver2Config(configStr string, recipientList *v1beta
 }
 
 func (o *operator) reload() error {
-	//TODO: what is the wait time
-	time.Sleep(10000 * time.Millisecond)
-	resp, err := http.Post(o.alertManagerUrl+"/-/reload", "text/html", nil)
-	logrus.Debug("Reload alert manager configuration")
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+	//TODO: how to deal with the file takes long time to sync up with secret
+	i := 0
+	for {
+		if i > 10 {
+			break
+		}
+		time.Sleep(10 * time.Second)
+		resp, err := http.Post(o.alertManagerUrl+"/-/reload", "text/html", nil)
+		logrus.Debug("Reload alert manager configuration")
+		if err != nil {
+			logrus.Errorf("Error while reloading alert manager configuration: %v", err)
+			return err
+		}
+		defer resp.Body.Close()
 
-	_, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
+		res, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		logrus.Infof("After reload: %s", string(res))
+
+		i++
 	}
 
 	return nil

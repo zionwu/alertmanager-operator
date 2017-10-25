@@ -8,9 +8,9 @@ metadata:
 spec:
   type: email
   emailRecipient:
-    address: test
+    address: test@rancher.ocm
   slackRecipient:
-    channel: test
+    channel: #test
   pagerdutyRecipient:
     serviceKey: test
 

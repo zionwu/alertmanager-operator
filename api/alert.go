@@ -113,7 +113,9 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 
-	apiContext.Write(&alert)
+	respAlert := toAlertResource(apiContext, alertCRD)
+
+	apiContext.Write(respAlert)
 	return nil
 }
 
@@ -234,7 +236,7 @@ func (s *Server) checkAlertParam(alert *Alert) error {
 		return fmt.Errorf("missing RecipientID")
 	}
 
-	if alert.Object == "" {
+	if alert.ObjectType == "" {
 		return fmt.Errorf("missing Object")
 	}
 
@@ -245,6 +247,37 @@ func (s *Server) checkAlertParam(alert *Alert) error {
 	if alert.ServiceRule.UnhealthyPercetage == "" {
 		return fmt.Errorf("missing percentage")
 	}
+
+	return nil
+}
+
+func (s *Server) podList(rw http.ResponseWriter, req *http.Request) (err error) {
+	defer func() {
+		err = errors.Wrap(err, "unable to list pod")
+	}()
+
+	podList, err := s.clientset.CoreV1().Pods("default").List(metav1.ListOptions{})
+	if err != nil {
+		logrus.Errorf("Error while listing k8s pods: %v", err)
+		return err
+	}
+
+	apiContext := api.GetApiContext(req)
+	resp := &client.GenericCollection{}
+
+	resp.ResourceType = "pod"
+	resp.CreateTypes = map[string]string{
+		"pod": apiContext.UrlBuilder.Collection("pod"),
+	}
+
+	data := []interface{}{}
+	for _, item := range podList.Items {
+		rn := toPodResource(apiContext, &item)
+		data = append(data, rn)
+
+	}
+	resp.Data = data
+	apiContext.Write(resp)
 
 	return nil
 }

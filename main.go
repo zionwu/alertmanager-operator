@@ -10,6 +10,8 @@ import (
 	"github.com/urfave/cli"
 	"github.com/zionwu/alertmanager-operator/api"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
+	"github.com/zionwu/alertmanager-operator/watch"
+
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -109,10 +111,13 @@ func RunOperator(c *cli.Context) error {
 
 	mclient, err := v1beta1.NewForConfig(config)
 
-	router := http.Handler(api.NewRouter(api.NewServer(clientset, mclient, alertmanagerURL, alertmanagerSecretName, alertmanagerConfig)))
-
+	server := api.NewServer(clientset, mclient, alertmanagerURL, alertmanagerSecretName, alertmanagerConfig)
+	router := http.Handler(api.NewRouter(server))
 	router = handlers.LoggingHandler(os.Stdout, router)
 	router = handlers.ProxyHeaders(router)
+
+	w := watch.NewWatcher(clientset, mclient, alertmanagerURL)
+	go w.Watch()
 
 	logrus.Infof("Alertmanager operator running on %s", listenPort)
 

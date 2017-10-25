@@ -100,7 +100,9 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 		return err
 	}
 
-	apiContext.Write(&recipient)
+	respRecipient := toRecipientResource(apiContext, recipientCRD)
+
+	apiContext.Write(respRecipient)
 	return nil
 
 }

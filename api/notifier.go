@@ -79,7 +79,9 @@ func (s *Server) createNotifier(rw http.ResponseWriter, req *http.Request) (err 
 		return err
 	}
 
-	apiContext.Write(&notifier)
+	respNotifier := toNotifierResource(apiContext, n)
+
+	apiContext.Write(respNotifier)
 	return nil
 
 }

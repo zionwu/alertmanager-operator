@@ -6,7 +6,6 @@ metadata:
     environment: default
     type: email
 spec:
-  type: email
   emailConfig:
     smtpAuthIdentity: identity1
     smtpAuthPassword: abc123
@@ -24,7 +23,6 @@ metadata:
     environment: default
     type: slack
 spec:
-  type: slack 
   slackConfig:
     slackApiUrl: zion.slack.com
 ---
@@ -36,7 +34,6 @@ metadata:
     environment: default
     type: pagerduty
 spec:
-  type: pagerduty 
   pagerdutyConfig:
     pagerdutyUrl: zion.pagerduty.com
 
