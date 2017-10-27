@@ -87,6 +87,7 @@ func sendAlert(url string, alert *v1beta1.Alert) error {
 	a.Labels = map[model.LabelName]model.LabelValue{}
 	a.Labels[model.LabelName("environment")] = model.LabelValue(alert.Namespace)
 	a.Labels[model.LabelName("alert_id")] = model.LabelValue(alert.Name)
+	a.Labels[model.LabelName("object_id")] = model.LabelValue(alert.Spec.ObjectID)
 
 	alertList = append(alertList, a)
 

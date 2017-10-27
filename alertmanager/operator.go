@@ -357,6 +357,8 @@ func (o *operator) addReceiver2Config(configStr string, recipient *v1beta1.Recip
 		slack := &alertconfig.SlackConfig{
 			Channel: recipient.Spec.SlackRecipient.Channel,
 			APIURL:  alertconfig.Secret(notifier.Spec.SlackConfig.SlackApiUrl),
+			Text:    "pod {{ (index .Alerts 0).Labels.object_id}} is unhealthy",
+			Title:   "Alert From Rancher",
 		}
 		receiver.SlackConfigs = append(receiver.SlackConfigs, slack)
 	case "pagerduty":
@@ -410,6 +412,8 @@ func (o *operator) updateReceiver2Config(configStr string, recipientList *v1beta
 					slack := &alertconfig.SlackConfig{
 						Channel: recipient.Spec.SlackRecipient.Channel,
 						APIURL:  alertconfig.Secret(notifier.Spec.SlackConfig.SlackApiUrl),
+						Text:    "pod {{ (index .Alerts 0).Labels.object_id}} is unhealthy",
+						Title:   "Alert From Rancher",
 					}
 					receiver.SlackConfigs[0] = slack
 				case "pagerduty":

@@ -30,8 +30,9 @@ curl -X GET -H 'Accept: application/json' -H 'Content-Type: application/json' 'h
 curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"recipientType":"slack", "emailRecipient":{"address":""},  "slackRecipient":{"channel":"#mon_test"}, "pagerdutyRecipient":{"serviceKey":""}}' 'http://127.0.0.1:8888/v5/recipients'
 
 
+ curl -X POST -d '[{"labels":{"environment":"default","alert_id":"b50254e7-346b-4923-8c83-ba1a5bcd8740"},"annotations":{"pod_name":"test"},"startsAt":"2017-10-20T17:17:50.000Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"http://curl.com/ab123"}]' http://192.168.99.100:31285/api/alerts
 -- create alert
-curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"name":"testslack2", "sendResolved":false, "severity":"info", "objectType":"pod", "objectId":"memory-demo", "serviceRule":{"unhealthyPercentage":"80"}, "recipientId":"7696b393-710c-41a7-83d2-e0360b995676"}' 'http://127.0.0.1:8888/v5/alerts'
+curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"name":"testslack2", "sendResolved":false, "severity":"info", "objectType":"pod", "objectId":"memory-demo", "serviceRule":{"unhealthyPercentage":"80"}, "recipientId":"6a2a572d-833c-41c2-9dd3-330bee363315"}' 'http://127.0.0.1:8888/v5/alerts'
 curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"name":"", "sendResolved":false, "severity":"info", "object":"service", "objectId":"123455", "serviceRule":{"unhealthyPercentage":"80"}, "recipientId":"9e64144a-f5f5-421d-870d-b7730771a3ad"}' 'http://127.0.0.1:8888/v5/alerts'
 
 -- update notifier 
@@ -40,7 +41,7 @@ curl -X PUT -H 'Accept: application/json' -H 'Content-Type: application/json' -d
 
 
 
-curl -X POST -d '[{"labels":{"environment":"default","alert_id":"7d211494-9ff9-45c8-8736-e051853ca34f"},"annotations":{},"startsAt":"2017-10-20T17:17:50.000Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"http://curl.com/ab123"}]' http://192.168.99.100:31285/api/alerts
+curl -X POST -d '[{"labels":{"environment":"default","alert_id":"950a8488-7122-4f1a-9dde-7089adf239c1"},"annotations":{},"startsAt":"2017-10-20T17:17:50.000Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"http://curl.com/ab123"}]' http://192.168.99.100:31285/api/alerts
 
 
 curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"recipientType":"email", "emailRecipient":{"address":"zion@rancher.com"},  "slackRecipient":{"channel":"#mon_test"}, "pagerdutyRecipient":{"serviceKey":""}}' 'http://127.0.0.1:8888/v5/recipient'
