@@ -32,8 +32,8 @@ type RecipientInterface interface {
 	Get(name string, opts metav1.GetOptions) (*Recipient, error)
 	Update(*Recipient) (*Recipient, error)
 	Delete(name string, options *metav1.DeleteOptions) error
-	//List(opts metav1.ListOptions) (runtime.Object, error)
-	List(opts metav1.ListOptions) (*RecipientList, error)
+	List(opts metav1.ListOptions) (runtime.Object, error)
+	//List(opts metav1.ListOptions) (*RecipientList, error)
 	Watch(opts metav1.ListOptions) (watch.Interface, error)
 	DeleteCollection(dopts *metav1.DeleteOptions, lopts metav1.ListOptions) error
 }
@@ -105,8 +105,8 @@ func (p *recipients) Delete(name string, options *metav1.DeleteOptions) error {
 	return p.client.Delete(name, options)
 }
 
-//func (p *recipients) List(opts metav1.ListOptions) (runtime.Object, error) {
-func (p *recipients) List(opts metav1.ListOptions) (*RecipientList, error) {
+func (p *recipients) List(opts metav1.ListOptions) (runtime.Object, error) {
+	//func (p *recipients) List(opts metav1.ListOptions) (*RecipientList, error) {
 	labelSelector, err := labels.Parse(opts.LabelSelector)
 	if err != nil {
 		return nil, err

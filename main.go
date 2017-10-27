@@ -1,16 +1,19 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/gorilla/handlers"
 	"github.com/urfave/cli"
+	"github.com/zionwu/alertmanager-operator/alertmanager"
 	"github.com/zionwu/alertmanager-operator/api"
-	"github.com/zionwu/alertmanager-operator/client/v1beta1"
-	"k8s.io/client-go/kubernetes"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -80,9 +83,9 @@ func RunOperator(c *cli.Context) error {
 
 	kubeconfig := c.String("kubeconfig")
 	listenPort := c.String("listen-port")
-	alertmanagerURL := c.String("alertmanager-url")
-	alertmanagerSecretName := c.String("alertmanager-secret-name")
-	alertmanagerConfig := c.String("alertmanager-config-file")
+	//alertmanagerURL := c.String("alertmanager-url")
+	//alertmanagerSecretName := c.String("alertmanager-secret-name")
+	//alertmanagerConfig := c.String("alertmanager-config-file")
 
 	var config *rest.Config
 	var err error
@@ -98,23 +101,33 @@ func RunOperator(c *cli.Context) error {
 		}
 	}
 
-	if err != nil {
-		panic(err.Error())
-	}
-	// create the clientset
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	mclient, err := v1beta1.NewForConfig(config)
-
-	router := http.Handler(api.NewRouter(api.NewServer(clientset, mclient, alertmanagerURL, alertmanagerSecretName, alertmanagerConfig)))
-
+	router := http.Handler(api.NewRouter(api.NewServer(config)))
 	router = handlers.LoggingHandler(os.Stdout, router)
 	router = handlers.ProxyHeaders(router)
-
 	logrus.Infof("Alertmanager operator running on %s", listenPort)
+	go http.ListenAndServe(":"+listenPort, router)
 
-	return http.ListenAndServe(":"+listenPort, router)
+	alertmanagerOperator := alertmanager.NewOperator(config)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	wg, ctx := errgroup.WithContext(ctx)
+
+	wg.Go(func() error { return alertmanagerOperator.Run(ctx.Done()) })
+
+	term := make(chan os.Signal)
+	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case <-term:
+		logrus.Info("msg", "Received SIGTERM, exiting gracefully...")
+	case <-ctx.Done():
+	}
+
+	cancel()
+	if err := wg.Wait(); err != nil {
+		logrus.Errorf("msg", "Unhandled error received. Exiting: %v", err)
+		return err
+	}
+
+	return nil
 }

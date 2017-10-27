@@ -32,8 +32,8 @@ type NotifierInterface interface {
 	Get(name string, opts metav1.GetOptions) (*Notifier, error)
 	Update(*Notifier) (*Notifier, error)
 	Delete(name string, options *metav1.DeleteOptions) error
-	//List(opts metav1.ListOptions) (runtime.Object, error)
-	List(opts metav1.ListOptions) (*NotifierList, error)
+	List(opts metav1.ListOptions) (runtime.Object, error)
+	//List(opts metav1.ListOptions) (*NotifierList, error)
 	Watch(opts metav1.ListOptions) (watch.Interface, error)
 	DeleteCollection(dopts *metav1.DeleteOptions, lopts metav1.ListOptions) error
 }
@@ -105,8 +105,8 @@ func (p *notifiers) Delete(name string, options *metav1.DeleteOptions) error {
 	return p.client.Delete(name, options)
 }
 
-//func (p *notifiers) List(opts metav1.ListOptions) (runtime.Object, error) {
-func (p *notifiers) List(opts metav1.ListOptions) (*NotifierList, error) {
+func (p *notifiers) List(opts metav1.ListOptions) (runtime.Object, error) {
+	//func (p *notifiers) List(opts metav1.ListOptions) (*NotifierList, error) {
 	labelSelector, err := labels.Parse(opts.LabelSelector)
 	if err != nil {
 		return nil, err

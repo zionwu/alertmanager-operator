@@ -11,9 +11,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rancher/go-rancher/api"
 	"github.com/rancher/go-rancher/client"
+	"github.com/zionwu/alertmanager-operator/client/v1beta1"
 	"github.com/zionwu/alertmanager-operator/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 )
 
 func (s *Server) recipientsList(rw http.ResponseWriter, req *http.Request) (err error) {
@@ -35,8 +35,9 @@ func (s *Server) recipientsList(rw http.ResponseWriter, req *http.Request) (err 
 		"recipient": apiContext.UrlBuilder.Collection("recipient"),
 	}
 
+	recipientList := l.(*v1beta1.RecipientList)
 	data := []interface{}{}
-	for _, item := range l.Items {
+	for _, item := range recipientList.Items {
 		rn := toRecipientResource(apiContext, item)
 		data = append(data, rn)
 	}
@@ -65,6 +66,7 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 		return err
 	}
 
+	//TODO: need to check if the notifier is configured
 	if err = s.checkRecipientParam(&recipient); err != nil {
 		return err
 	}
@@ -80,30 +82,9 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 		return err
 	}
 
-	opt := metav1.ListOptions{
-		LabelSelector: fields.SelectorFromSet(fields.Set(map[string]string{
-			"environment": recipientCRD.Labels["environment"],
-			"type":        recipientCRD.Labels["type"],
-		})).String()}
-	notifierList, err := s.notifierClient.List(opt)
-	if err != nil {
-		logrus.Errorf("Error while listing notifier CRD: %v", err)
-		return err
-	}
-	if len(notifierList.Items) == 0 {
-		return fmt.Errorf("can not find notifier for %s", recipient.Type)
-	}
-
-	//Change alertmanager configuration
-	if err = s.configOperator.AddReceiver(recipientCRD, notifierList.Items[0]); err != nil {
-		logrus.Error("Error while adding receiver")
-		return err
-	}
-
 	res := toRecipientResource(apiContext, recipientCRD)
 	apiContext.Write(res)
 	return nil
-
 }
 
 func (s *Server) getRecipient(rw http.ResponseWriter, req *http.Request) (err error) {

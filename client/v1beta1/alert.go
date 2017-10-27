@@ -32,8 +32,8 @@ type AlertInterface interface {
 	Get(name string, opts metav1.GetOptions) (*Alert, error)
 	Update(*Alert) (*Alert, error)
 	Delete(name string, options *metav1.DeleteOptions) error
-	//List(opts metav1.ListOptions) (runtime.Object, error)
-	List(opts metav1.ListOptions) (*AlertList, error)
+	List(opts metav1.ListOptions) (runtime.Object, error)
+	//List(opts metav1.ListOptions) (*AlertList, error)
 	Watch(opts metav1.ListOptions) (watch.Interface, error)
 	DeleteCollection(dopts *metav1.DeleteOptions, lopts metav1.ListOptions) error
 }
@@ -105,8 +105,8 @@ func (p *alerts) Delete(name string, options *metav1.DeleteOptions) error {
 	return p.client.Delete(name, options)
 }
 
-//func (p *alerts) List(opts metav1.ListOptions) (runtime.Object, error) {
-func (p *alerts) List(opts metav1.ListOptions) (*AlertList, error) {
+func (p *alerts) List(opts metav1.ListOptions) (runtime.Object, error) {
+	//func (p *alerts) List(opts metav1.ListOptions) (*AlertList, error) {
 	labelSelector, err := labels.Parse(opts.LabelSelector)
 	if err != nil {
 		return nil, err

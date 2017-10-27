@@ -5,11 +5,11 @@ import (
 
 	"github.com/rancher/go-rancher/api"
 	"github.com/rancher/go-rancher/client"
-	"github.com/zionwu/alertmanager-operator/alertmanager"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/rest"
 )
 
 type Server struct {
@@ -18,7 +18,6 @@ type Server struct {
 	notifierClient  v1beta1.NotifierInterface
 	recipientClient v1beta1.RecipientInterface
 	alertClient     v1beta1.AlertInterface
-	configOperator  alertmanager.Operator
 }
 
 type Error struct {
@@ -58,13 +57,19 @@ type Recipient struct {
 	PagerDutyRecipient v1beta1.PagerDutyRecipientSpec `json:"pagerdutyRecipient"`
 }
 
-func NewServer(clientset *kubernetes.Clientset, mclient *v1beta1.MonitoringV1Client, alertManagerURL string, alertSecretName string, alertmanagerConfig string) *Server {
+func NewServer(config *rest.Config) *Server {
+
+	// create the clientset
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	mclient, err := v1beta1.NewForConfig(config)
 	//TODO: should not hardcode name space here
 	notifierClient := mclient.Notifiers(k8sapi.NamespaceDefault)
 	recipientClient := mclient.Recipients(k8sapi.NamespaceDefault)
 	alertClient := mclient.Alerts(k8sapi.NamespaceDefault)
-
-	operator := alertmanager.NewOperator(clientset, alertManagerURL, alertSecretName, alertmanagerConfig)
 
 	return &Server{
 		clientset:       clientset,
@@ -72,7 +77,6 @@ func NewServer(clientset *kubernetes.Clientset, mclient *v1beta1.MonitoringV1Cli
 		notifierClient:  notifierClient,
 		recipientClient: recipientClient,
 		alertClient:     alertClient,
-		configOperator:  operator,
 	}
 }
 

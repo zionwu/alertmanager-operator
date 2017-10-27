@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/go-rancher/api"
 	"github.com/rancher/go-rancher/client"
 	"github.com/zionwu/alertmanager-operator/alertmanager"
+	"github.com/zionwu/alertmanager-operator/client/v1beta1"
 	"github.com/zionwu/alertmanager-operator/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -38,19 +39,11 @@ func (s *Server) alertsList(rw http.ResponseWriter, req *http.Request) (err erro
 		"alert": apiContext.UrlBuilder.Collection("alert"),
 	}
 
-	//TODO:should get the env from request
-	activeAlerts, err := s.configOperator.GetActiveAlertListFromAlertManager("enviroment=default")
-	if err != nil {
-		logrus.Errorf("Error while getting active alert: %v", err)
-		return err
-	}
-
+	alertList := l.(*v1beta1.AlertList)
 	data := []interface{}{}
-	for _, item := range l.Items {
+	for _, item := range alertList.Items {
 		rn := toAlertResource(apiContext, item)
-		setAlertState(rn, activeAlerts)
 		data = append(data, rn)
-
 	}
 	resp.Data = data
 	apiContext.Write(resp)
@@ -107,12 +100,6 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 
-	//make change to configuration of alert manager
-	if err = s.configOperator.AddRoute(alertCRD); err != nil {
-		logrus.Errorf("Error while adding route config: %v", err)
-		return err
-	}
-
 	res := toAlertResource(apiContext, alertCRD)
 
 	apiContext.Write(res)
@@ -131,14 +118,7 @@ func (s *Server) getAlert(rw http.ResponseWriter, req *http.Request) (err error)
 		return err
 	}
 
-	//TODO:should get the env from request
-	activeAlerts, err := s.configOperator.GetActiveAlertListFromAlertManager("alert_id=" + n.Name)
-	if err != nil {
-		logrus.Errorf("Error while getting active alert: %v", err)
-		return err
-	}
 	rn := toAlertResource(apiContext, n)
-	setAlertState(rn, activeAlerts)
 
 	apiContext.WriteResource(rn)
 	return nil
@@ -151,7 +131,7 @@ func (s *Server) deleteAlert(rw http.ResponseWriter, req *http.Request) (err err
 	id := mux.Vars(req)["id"]
 
 	getOpt := metav1.GetOptions{}
-	n, err := s.alertClient.Get(id, getOpt)
+	_, err = s.alertClient.Get(id, getOpt)
 	if err != nil {
 		logrus.Errorf("Error while getting k8s alert CRD: %v", err)
 		return err
@@ -161,12 +141,6 @@ func (s *Server) deleteAlert(rw http.ResponseWriter, req *http.Request) (err err
 	err = s.alertClient.Delete(id, &opt)
 	if err != nil {
 		logrus.Errorf("Error while deleting k8s alert CRD", err)
-		return err
-	}
-
-	//delete route in configuration of alert manager
-	if err = s.configOperator.DeleteRoute(n); err != nil {
-		logrus.Errorf("Error while adding route config: %v", err)
 		return err
 	}
 
@@ -211,12 +185,6 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 
 	if err != nil {
 		logrus.Errorf("Error while updating k8s alert CRD", err)
-		return err
-	}
-
-	//update the route in configuration of alert manager
-	if err = s.configOperator.UpdateRoute(n); err != nil {
-		logrus.Errorf("Error while adding route config: %v", err)
 		return err
 	}
 
