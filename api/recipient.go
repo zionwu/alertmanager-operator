@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -157,27 +156,7 @@ func (s *Server) updateRecipient(rw http.ResponseWriter, req *http.Request) (err
 }
 
 func (s *Server) checkRecipientParam(recipient *Recipient) error {
-	if recipient.RecipientType == "" {
-		return fmt.Errorf("missing recipientType")
-	}
 
-	if !(recipient.RecipientType == "email" || recipient.RecipientType == "slack" || recipient.RecipientType == "pagerduty") {
-		return fmt.Errorf("not valid value for recipientType")
-	}
-
-	switch recipient.RecipientType {
-	case "email":
-		if recipient.EmailRecipient.Address == "" {
-			return fmt.Errorf("missing Address")
-		}
-	case "slack":
-		if recipient.SlackRecipient.Channel == "" {
-			return fmt.Errorf("missing channel")
-		}
-	case "pagerduty":
-		if recipient.PagerDutyRecipient.ServiceKey == "" {
-			return fmt.Errorf("missing service key")
-		}
-	}
+	//check only one of the recipient is not empty
 	return nil
 }

@@ -196,8 +196,8 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 //TODO: check all enum field valid
 func (s *Server) checkAlertParam(alert *Alert) error {
 
-	if alert.Name == "" {
-		return fmt.Errorf("missing name")
+	if alert.Description == "" {
+		return fmt.Errorf("missing description")
 	}
 
 	if alert.RecipientID == "" {

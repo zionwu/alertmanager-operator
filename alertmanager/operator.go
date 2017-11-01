@@ -24,7 +24,7 @@ import (
 
 const (
 	ConfigFileName   = "config.yml"
-	EnvLabelName     = "environment"
+	NSLabelName      = "namespace"
 	AlertIDLabelName = "alert_id"
 
 	resyncPeriod = 5 * time.Minute
@@ -46,11 +46,6 @@ type Operator struct {
 
 func NewOperator(config *rest.Config, alertManagerUrl string, alertSecretName string, alertmanagerConfig string) (*Operator, error) {
 	// create the clientset
-	c, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-
 	kclient, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, errors.Wrap(err, "instantiating kubernetes client failed")
@@ -132,6 +127,7 @@ func (c *Operator) Run(stopc <-chan struct{}) error {
 		}
 		logrus.Infof("connection established, cluster-version: %v", v)
 		/*
+			TODO: create the CRD, ETA 10.31
 			if err := c.createCRDs(); err != nil {
 				errChan <- errors.Wrap(err, "creating CRDs failed")
 				return
@@ -162,6 +158,8 @@ func (c *Operator) Run(stopc <-chan struct{}) error {
 
 func (c *Operator) handleAlertAdd(obj interface{}) {
 	alert := obj.(*v1beta1.Alert)
+	logrus.Infof("Add for alert: %v", alert)
+
 	if err := c.makeConfig(alert, c.addRoute2Config); err != nil {
 		logrus.Errorf("Error whiling adding route: %v", err)
 	}
@@ -169,48 +167,96 @@ func (c *Operator) handleAlertAdd(obj interface{}) {
 
 func (c *Operator) handleAlertDelete(obj interface{}) {
 	alert := obj.(*v1beta1.Alert)
-	if err := c.makeConfig(alert); err != nil {
+	logrus.Infof("Delete for alert: %v", alert)
+
+	if err := c.makeConfig(alert, c.deleteRoute2Config); err != nil {
 		logrus.Errorf("Error whiling deleting route: %v", err)
 	}
 }
 
 func (c *Operator) handleAlertUpdate(oldObj, curObj interface{}) {
 	alert := curObj.(*v1beta1.Alert)
-	if err := c.makeConfig(alert); err != nil {
+	oldAlert := oldObj.(*v1beta1.Alert)
+
+	if alert.GetResourceVersion() == oldAlert.GetResourceVersion() {
+		logrus.Infof("Same version: %v", alert.GetResourceVersion())
+		return
+	}
+
+	logrus.Infof("Update for alert: %v", alert)
+
+	if err := c.makeConfig(alert, c.updateRoute2Config); err != nil {
 		logrus.Errorf("Error whiling updating route: %v", err)
 	}
 }
 
 func (c *Operator) handleRecipientAdd(obj interface{}) {
 	recipient := obj.(*v1beta1.Recipient)
-	makeConfig
-	if err := c.makeConfig(recipient); err != nil {
+	logrus.Infof("Add for recipient: %v", recipient)
+
+	if err := c.makeConfig(recipient, c.addReceiver2Config); err != nil {
 		logrus.Errorf("Error whiling adding receiver: %v", err)
 	}
-
 }
 
 func (c *Operator) handleRecipientDelete(obj interface{}) {
 	recipient := obj.(*v1beta1.Recipient)
-	if err := c.deleteReceiver(recipient); err != nil {
+	logrus.Infof("Delete for recipient: %v", recipient)
+
+	if err := c.makeConfig(recipient, c.deleteReceiver2Config); err != nil {
 		logrus.Errorf("Error whiling deleting receiver: %v", err)
 	}
 }
 
 func (c *Operator) handleRecipientUpdate(oldObj, curObj interface{}) {
 	recipient := curObj.(*v1beta1.Recipient)
-	if err := c.updateReceiver(recipient); err != nil {
+	oldRecipient := oldObj.(*v1beta1.Recipient)
+
+	if recipient.GetResourceVersion() == oldRecipient.GetResourceVersion() {
+		logrus.Infof("Same version: %v", recipient.GetResourceVersion())
+		return
+	}
+	logrus.Infof("Update for recipient: %v", recipient)
+
+	if err := c.makeConfig(recipient, c.updateReceiver2Config); err != nil {
 		logrus.Errorf("Error whiling updating receiver: %v", err)
 	}
 }
 
 func (c *Operator) handleNotifierAdd(obj interface{}) {
+
+	notifier := obj.(*v1beta1.Notifier)
+	logrus.Infof("Add for notifier: %v", notifier)
+
+	if err := c.makeConfig(notifier, c.updateNotifier2Config); err != nil {
+		logrus.Errorf("Error whiling adding notifier: %v", err)
+	}
 }
 
 func (c *Operator) handleNotifierDelete(obj interface{}) {
+	/*
+		recipient := curObj.(*v1beta1.Recipient)
+		if err := c.updateReceiver(recipient, c.updateReceiver2Config); err != nil {
+			logrus.Errorf("Error whiling updating notifier: %v", err)
+		}
+	*/
 }
 
 func (c *Operator) handleNotifierUpdate(oldObj, curObj interface{}) {
+	notifier := curObj.(*v1beta1.Notifier)
+	oldNotifier := oldObj.(*v1beta1.Notifier)
+
+	if notifier.GetResourceVersion() == oldNotifier.GetResourceVersion() {
+		logrus.Infof("Same version: %v", notifier.GetResourceVersion())
+		return
+	}
+
+	logrus.Infof("Update for notifier: %v", notifier)
+
+	if err := c.makeConfig(notifier, c.updateNotifier2Config); err != nil {
+		logrus.Errorf("Error whiling updating notifier: %v", err)
+	}
+
 }
 
 func (c *Operator) makeConfig(obj interface{}, f func(string, interface{}) (string, error)) error {
@@ -242,110 +288,12 @@ func (c *Operator) makeConfig(obj interface{}, f func(string, interface{}) (stri
 	go c.reload()
 
 	return nil
-
 }
 
-func (c *Operator) updateReceiver() error {
-	return nil
-}
+func (c *Operator) addRoute2Config(configStr string, a interface{}) (string, error) {
+	logrus.Infof("before adding route: %s", configStr)
 
-func (c *Operator) addRoute(alert *v1beta1.Alert) error {
-	//1. get configuration from secret
-	//TODO: should not hardcode the namespace
-	sClient := c.kclient.CoreV1().Secrets("default")
-
-	configSecret, err := sClient.Get(c.alertSecretName, metav1.GetOptions{})
-	if err != nil {
-		logrus.Error("Error while getting secret: %v", err)
-		return err
-	}
-
-	configBtyes := configSecret.Data[ConfigFileName]
-
-	newConfigStr, err := c.addRoute2Config(string(configBtyes), alert)
-	if err != nil {
-		logrus.Error("Error while adding route: %v", err)
-		return err
-	}
-
-	configSecret.Data[ConfigFileName] = []byte(newConfigStr)
-	_, err = sClient.Update(configSecret)
-	if err != nil {
-		logrus.Error("Error while updating secret: %v", err)
-		return err
-	}
-
-	go c.reload()
-
-	return nil
-}
-
-func (c *Operator) updateRoute(alert *v1beta1.Alert) error {
-	//1. get configuration from secret
-	//TODO: should not hardcode the namespace
-	sClient := c.kclient.CoreV1().Secrets("default")
-
-	configSecret, err := sClient.Get(c.alertSecretName, metav1.GetOptions{})
-	if err != nil {
-		logrus.Error("Error while getting secret: %v", err)
-		return err
-	}
-
-	configBtyes := configSecret.Data[ConfigFileName]
-
-	newConfigStr, err := c.updateRoute2Config(string(configBtyes), alert)
-	if err != nil {
-		logrus.Error("Error while adding route: %v", err)
-		return err
-	}
-
-	configSecret.Data[ConfigFileName] = []byte(newConfigStr)
-	_, err = sClient.Update(configSecret)
-	if err != nil {
-		logrus.Error("Error while updating secret: %v", err)
-		return err
-	}
-
-	go c.reload()
-
-	return nil
-}
-
-func (c *Operator) deleteRoute(alert *v1beta1.Alert) error {
-	//1. get configuration from secret
-	//TODO: should not hardcode the namespace
-	sClient := c.kclient.CoreV1().Secrets("default")
-
-	configSecret, err := sClient.Get(c.alertSecretName, metav1.GetOptions{})
-	if err != nil {
-		logrus.Error("Error while getting secret: %v", err)
-		return err
-	}
-
-	configBtyes := configSecret.Data[ConfigFileName]
-
-	newConfigStr, err := c.deleteRoute2Config(string(configBtyes), alert)
-	if err != nil {
-		logrus.Error("Error while adding route: %v", err)
-		return err
-	}
-
-	configSecret.Data[ConfigFileName] = []byte(newConfigStr)
-	_, err = sClient.Update(configSecret)
-	if err != nil {
-		logrus.Error("Error while updating secret: %v", err)
-		return err
-	}
-
-	go c.reload()
-
-	return nil
-}
-
-func (c *Operator) addRoute2Config(configStr string, alert interface{}) (string, error) {
-	logrus.Debug("before adding route: %s", configStr)
-
-	alert * v1beta1.Alert
+	alert := a.(*v1beta1.Alert)
 
 	config, err := alertconfig.Load(configStr)
 	if err != nil {
@@ -356,10 +304,10 @@ func (c *Operator) addRoute2Config(configStr string, alert interface{}) (string,
 	if envRoutes == nil {
 		*envRoutes = []*alertconfig.Route{}
 	}
-	env := alert.Labels["environment"]
+
 	var envRoute *alertconfig.Route
 	for _, r := range *envRoutes {
-		if r.Match[EnvLabelName] == env {
+		if r.Match[NSLabelName] == alert.Namespace {
 			envRoute = r
 			break
 		}
@@ -367,15 +315,21 @@ func (c *Operator) addRoute2Config(configStr string, alert interface{}) (string,
 
 	if envRoute == nil {
 		match := map[string]string{}
-		match[EnvLabelName] = env
+		match[NSLabelName] = alert.Namespace
 		envRoute = &alertconfig.Route{Match: match, Routes: []*alertconfig.Route{}}
 		*envRoutes = append(*envRoutes, envRoute)
+	}
+
+	for _, route := range envRoute.Routes {
+		if route.Match[AlertIDLabelName] == alert.Name {
+			return configStr, nil
+		}
 	}
 
 	match := map[string]string{}
 	match[AlertIDLabelName] = alert.Name
 	route := &alertconfig.Route{
-		Receiver: alert.Spec.RecipientID,
+		Receiver: alert.RecipientID,
 		Match:    match,
 	}
 	envRoute.Routes = append(envRoute.Routes, route)
@@ -386,13 +340,15 @@ func (c *Operator) addRoute2Config(configStr string, alert interface{}) (string,
 		return "", err
 	}
 
-	logrus.Debug("after adding route: %s", string(d))
+	logrus.Infof("after adding route: %s", string(d))
 
 	return string(d), nil
 }
 
-func (c *Operator) updateRoute2Config(configStr string, alert *v1beta1.Alert) (string, error) {
-	logrus.Debug("before updating route: %s", configStr)
+func (c *Operator) updateRoute2Config(configStr string, a interface{}) (string, error) {
+	logrus.Infof("before updating route: %s", configStr)
+
+	alert := a.(*v1beta1.Alert)
 
 	config, err := alertconfig.Load(configStr)
 	if err != nil {
@@ -401,10 +357,9 @@ func (c *Operator) updateRoute2Config(configStr string, alert *v1beta1.Alert) (s
 
 	envRoutes := &config.Route.Routes
 
-	env := alert.Labels["environment"]
 	var envRoute *alertconfig.Route
 	for _, r := range *envRoutes {
-		if r.Match[EnvLabelName] == env {
+		if r.Match[NSLabelName] == alert.Namespace {
 			envRoute = r
 			break
 		}
@@ -412,7 +367,7 @@ func (c *Operator) updateRoute2Config(configStr string, alert *v1beta1.Alert) (s
 
 	for _, route := range envRoute.Routes {
 		if route.Match[AlertIDLabelName] == alert.Name {
-			route.Receiver = alert.Spec.RecipientID
+			route.Receiver = alert.RecipientID
 			break
 		}
 	}
@@ -423,14 +378,14 @@ func (c *Operator) updateRoute2Config(configStr string, alert *v1beta1.Alert) (s
 		return "", err
 	}
 
-	logrus.Debug("after updating route: %s", string(d))
+	logrus.Infof("after updating route: %s", string(d))
 
 	return string(d), nil
 }
 
-func (c *Operator) deleteRoute2Config(configStr string, alert *v1beta1.Alert) (string, error) {
-	logrus.Debug("before deleting route: %s", configStr)
-
+func (c *Operator) deleteRoute2Config(configStr string, a interface{}) (string, error) {
+	logrus.Infof("before deleting route: %s", configStr)
+	alert := a.(*v1beta1.Alert)
 	config, err := alertconfig.Load(configStr)
 	if err != nil {
 		return "", err
@@ -438,10 +393,9 @@ func (c *Operator) deleteRoute2Config(configStr string, alert *v1beta1.Alert) (s
 
 	envRoutes := &config.Route.Routes
 
-	env := alert.Labels["environment"]
 	var envRoute *alertconfig.Route
 	for _, r := range *envRoutes {
-		if r.Match[EnvLabelName] == env {
+		if r.Match[NSLabelName] == alert.Namespace {
 			envRoute = r
 			break
 		}
@@ -462,36 +416,43 @@ func (c *Operator) deleteRoute2Config(configStr string, alert *v1beta1.Alert) (s
 		return "", err
 	}
 
-	logrus.Debug("after deleting route: %s", string(d))
+	logrus.Infof("after deleting route: %s", string(d))
 
 	return string(d), nil
 }
 
-func (c *Operator) addReceiver2Config(configStr string, recipient *v1beta1.Recipient) (string, error) {
-	logrus.Debug("before adding receiver: %s", configStr)
-
+func (c *Operator) addReceiver2Config(configStr string, r interface{}) (string, error) {
+	logrus.Infof("before adding receiver: %s", configStr)
+	recipient := r.(*v1beta1.Recipient)
 	config, err := alertconfig.Load(configStr)
 	if err != nil {
 		return "", err
 	}
 
+	for _, item := range config.Receivers {
+		if item.Name == recipient.Name {
+			return configStr, nil
+		}
+	}
+
 	//2. add the receiver to the configuration
 	receiver := &alertconfig.Receiver{Name: recipient.Name}
-	switch recipient.Spec.Type {
-	case "email":
+	if recipient.EmailRecipient.Address != "" {
 		email := &alertconfig.EmailConfig{
-			To: recipient.Spec.EmailRecipient.Address,
+			To: recipient.EmailRecipient.Address,
 		}
 		receiver.EmailConfigs = append(receiver.EmailConfigs, email)
-
-	case "slack":
+	} else if recipient.SlackRecipient.Channel != "" {
 		slack := &alertconfig.SlackConfig{
-			Channel: recipient.Spec.SlackRecipient.Channel,
+			//TODO: set a better text content
+			Channel: recipient.SlackRecipient.Channel,
+			Text:    "pod {{ (index .Alerts 0).Labels.object_id}} is unhealthy",
+			Title:   "Alert From Rancher",
 		}
 		receiver.SlackConfigs = append(receiver.SlackConfigs, slack)
-	case "pagerduty":
+	} else if recipient.PagerDutyRecipient.ServiceKey != "" {
 		pagerduty := &alertconfig.PagerdutyConfig{
-			ServiceKey: alertconfig.Secret(recipient.Spec.PagerDutyRecipient.ServiceKey),
+			ServiceKey: alertconfig.Secret(recipient.PagerDutyRecipient.ServiceKey),
 		}
 		receiver.PagerdutyConfigs = append(receiver.PagerdutyConfigs, pagerduty)
 	}
@@ -501,8 +462,110 @@ func (c *Operator) addReceiver2Config(configStr string, recipient *v1beta1.Recip
 	//update the secret
 	d, err := yaml.Marshal(config)
 
-	logrus.Debug("after adding receiver: %s", string(d))
+	logrus.Infof("after adding receiver: %s", string(d))
 
+	if err != nil {
+		return "", err
+	}
+
+	return string(d), nil
+}
+
+func (c *Operator) updateReceiver2Config(configStr string, r interface{}) (string, error) {
+	logrus.Infof("before deleting receiver: %s", configStr)
+	recipient := r.(*v1beta1.Recipient)
+	config, err := alertconfig.Load(configStr)
+	if err != nil {
+		return "", err
+	}
+
+	for _, item := range config.Receivers {
+		if item.Name == recipient.Name {
+			if recipient.EmailRecipient.Address != "" {
+				email := &alertconfig.EmailConfig{
+					To: recipient.EmailRecipient.Address,
+				}
+				item.EmailConfigs[0] = email
+			} else if recipient.SlackRecipient.Channel != "" {
+				slack := &alertconfig.SlackConfig{
+					Channel: recipient.SlackRecipient.Channel,
+					Text:    "pod {{ (index .Alerts 0).Labels.object_id}} is unhealthy",
+					Title:   "Alert From Rancher",
+				}
+				item.SlackConfigs[0] = slack
+			} else if recipient.PagerDutyRecipient.ServiceKey != "" {
+				pagerduty := &alertconfig.PagerdutyConfig{
+					ServiceKey: alertconfig.Secret(recipient.PagerDutyRecipient.ServiceKey),
+				}
+				item.PagerdutyConfigs[0] = pagerduty
+			}
+		}
+	}
+	//update the secret
+	d, err := yaml.Marshal(config)
+	logrus.Infof("after deleting receiver: %s", string(d))
+	if err != nil {
+		return "", err
+	}
+
+	return string(d), nil
+}
+
+func (c *Operator) deleteReceiver2Config(configStr string, r interface{}) (string, error) {
+	logrus.Infof("before deleting receiver: %s", configStr)
+	recipient := r.(*v1beta1.Recipient)
+	config, err := alertconfig.Load(configStr)
+	if err != nil {
+		return "", err
+	}
+
+	receivers := config.Receivers
+	for i, item := range receivers {
+		if item.Name == recipient.Name {
+			receivers = append(receivers[:i], receivers[i+1:]...)
+			break
+		}
+	}
+	config.Receivers = receivers
+	//update the secret
+	d, err := yaml.Marshal(config)
+	logrus.Infof("after deleting receiver: %s", string(d))
+	if err != nil {
+		return "", err
+	}
+
+	return string(d), nil
+}
+
+func (c *Operator) updateNotifier2Config(configStr string, n interface{}) (string, error) {
+	logrus.Infof("before updating notifier: %s", configStr)
+	notifier := n.(*v1beta1.Notifier)
+	config, err := alertconfig.Load(configStr)
+	if err != nil {
+		return "", err
+	}
+	if notifier.PagerDutyConfig != nil {
+		config.Global.PagerdutyURL = notifier.PagerDutyConfig.PagerDutyUrl
+	}
+
+	if notifier.SlackConfig != nil {
+		config.Global.SlackAPIURL = alertconfig.Secret(notifier.SlackConfig.SlackApiUrl)
+
+	}
+
+	if notifier.EmailConfig != nil {
+		config.Global.SMTPAuthIdentity = notifier.EmailConfig.SMTPAuthIdentity
+		config.Global.SMTPAuthPassword = alertconfig.Secret(notifier.EmailConfig.SMTPAuthPassword)
+		config.Global.SMTPAuthSecret = alertconfig.Secret(notifier.EmailConfig.SMTPAuthSecret)
+		config.Global.SMTPAuthUsername = notifier.EmailConfig.SMTPAuthUserName
+		config.Global.SMTPFrom = notifier.EmailConfig.SMTPFrom
+		config.Global.SMTPSmarthost = notifier.EmailConfig.SMTPSmartHost
+		config.Global.SMTPRequireTLS = notifier.EmailConfig.SMTPRequireTLS
+	}
+
+	//update the secret
+	d, err := yaml.Marshal(config)
+	logrus.Infof("after updating notifier: %s", string(d))
 	if err != nil {
 		return "", err
 	}
@@ -514,7 +577,7 @@ func (c *Operator) reload() error {
 	//TODO: what is the wait time
 	time.Sleep(10 * time.Second)
 	resp, err := http.Post(c.alertManagerUrl+"/-/reload", "text/html", nil)
-	logrus.Debug("Reload alert manager configuration")
+	logrus.Infof("Reload alert manager configuration")
 	if err != nil {
 		return err
 	}
@@ -529,14 +592,14 @@ func (c *Operator) reload() error {
 }
 
 //TODO: decide which package should this function be
-func getActiveAlertListFromAlertManager(filter string) ([]*dispatch.APIAlert, error) {
+func (c *Operator) getActiveAlertListFromAlertManager(filter string) ([]*dispatch.APIAlert, error) {
 
 	res := struct {
 		Data   []*dispatch.APIAlert `json:"data"`
 		Status string               `json:"status"`
 	}{}
 
-	req, err := http.NewRequest(http.MethodGet, o.alertManagerUrl+"/api/v1/alerts", nil)
+	req, err := http.NewRequest(http.MethodGet, c.alertManagerUrl+"/api/v1/alerts", nil)
 	if err != nil {
 		return nil, err
 	}

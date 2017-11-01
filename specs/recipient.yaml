@@ -5,13 +5,11 @@ metadata:
   labels:
     environment: default
     type: email
-spec:
-  type: email
-  emailRecipient:
-    address: test
-  slackRecipient:
-    channel: test
-  pagerdutyRecipient:
-    serviceKey: test
+emailRecipient:
+  address: test
+slackRecipient:
+  channel: test
+pagerdutyRecipient:
+  serviceKey: test
 
 

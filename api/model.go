@@ -31,7 +31,6 @@ type Error struct {
 
 type Notifier struct {
 	client.Resource
-	NotifierType    string                      `json:"notifierType"`
 	SlackConfig     v1beta1.SlackConfigSpec     `json:"slackConfig"`
 	EmailConfig     v1beta1.EmailConfigSpec     `json:"emailConfig"`
 	PagerDutyConfig v1beta1.PagerDutyConfigSpec `json:"pagerdutyConfig"`
@@ -39,7 +38,7 @@ type Notifier struct {
 
 type Alert struct {
 	client.Resource
-	Name         string                  `json:"name"`
+	Description  string                  `json:"description"`
 	State        string                  `json:"state"`
 	SendResolved bool                    `json:"sendResolved"`
 	Severity     string                  `json:"severity"`
@@ -51,7 +50,6 @@ type Alert struct {
 
 type Recipient struct {
 	client.Resource
-	RecipientType      string                         `json:"recipientType"`
 	SlackRecipient     v1beta1.SlackRecipientSpec     `json:"slackRecipient"`
 	EmailRecipient     v1beta1.EmailRecipientSpec     `json:"emailRecipient"`
 	PagerDutyRecipient v1beta1.PagerDutyRecipientSpec `json:"pagerdutyRecipient"`
@@ -115,10 +113,10 @@ func alertSchema(alert *client.Schema) {
 	state.Options = []string{"active", "inactive"}
 	alert.ResourceFields["state"] = state
 
-	name := alert.ResourceFields["name"]
-	name.Create = true
-	name.Update = true
-	alert.ResourceFields["name"] = name
+	description := alert.ResourceFields["description"]
+	description.Create = true
+	description.Update = true
+	alert.ResourceFields["description"] = description
 
 	sendResolved := alert.ResourceFields["sendResolved"]
 	sendResolved.Create = true
@@ -150,13 +148,6 @@ func recipientSchema(recipient *client.Schema) {
 	//TODO: remove unsued method like post/delete
 	recipient.CollectionMethods = []string{http.MethodGet, http.MethodPost}
 	recipient.ResourceMethods = []string{http.MethodGet, http.MethodDelete, http.MethodPut}
-
-	recipientType := recipient.ResourceFields["recipientType"]
-	recipientType.Create = true
-	recipientType.Required = true
-	recipientType.Type = "enum"
-	recipientType.Options = []string{"email", "slack", "pagerduty"}
-	recipient.ResourceFields["recipientType"] = recipientType
 }
 
 func notifierSchema(notifier *client.Schema) {
@@ -164,13 +155,6 @@ func notifierSchema(notifier *client.Schema) {
 	notifier.CollectionMethods = []string{http.MethodGet, http.MethodPost}
 	notifier.ResourceMethods = []string{http.MethodGet, http.MethodPut, http.MethodDelete}
 
-	notifierType := notifier.ResourceFields["notifierType"]
-	notifierType.Create = true
-	notifierType.Required = true
-	notifierType.Update = false
-	notifierType.Type = "enum"
-	notifierType.Options = []string{"email", "slack", "pagerduty"}
-	notifier.ResourceFields["notifierType"] = notifierType
 	notifier.ResourceActions = map[string]client.Action{
 		"validate": {
 			Input:  "notifier",
@@ -189,15 +173,9 @@ func toNotifierResource(apiContext *api.ApiContext, n *v1beta1.Notifier) *Notifi
 		Links:   map[string]string{},
 	}
 
-	rn.NotifierType = n.Spec.Type
-	switch rn.NotifierType {
-	case "email":
-		rn.EmailConfig = *n.Spec.EmailConfig
-	case "slack":
-		rn.SlackConfig = *n.Spec.SlackConfig
-	case "pagerduty":
-		rn.PagerDutyConfig = *n.Spec.PagerDutyConfig
-	}
+	rn.EmailConfig = *n.EmailConfig
+	rn.SlackConfig = *n.SlackConfig
+	rn.PagerDutyConfig = *n.PagerDutyConfig
 
 	rn.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("notifier", rn.Id)
 	rn.Actions["validate"] = apiContext.UrlBuilder.ReferenceLink(rn.Resource) + "?action=validate"
@@ -207,23 +185,11 @@ func toNotifierResource(apiContext *api.ApiContext, n *v1beta1.Notifier) *Notifi
 
 func toNotifierCRD(rn *Notifier, env string) *v1beta1.Notifier {
 	n := &v1beta1.Notifier{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: rn.Id,
-			Labels: map[string]string{
-				"environment": env,
-				"type":        rn.NotifierType,
-			},
-		},
-	}
-
-	spec := v1beta1.NotifierSpec{
-		Type:            rn.NotifierType,
 		EmailConfig:     &rn.EmailConfig,
 		SlackConfig:     &rn.SlackConfig,
 		PagerDutyConfig: &rn.PagerDutyConfig,
 	}
 
-	n.Spec = spec
 	return n
 }
 
@@ -238,15 +204,9 @@ func toRecipientResource(apiContext *api.ApiContext, n *v1beta1.Recipient) *Reci
 		Links:   map[string]string{},
 	}
 
-	rn.RecipientType = n.Spec.Type
-	switch rn.RecipientType {
-	case "email":
-		rn.EmailRecipient = *n.Spec.EmailRecipient
-	case "slack":
-		rn.SlackRecipient = *n.Spec.SlackRecipient
-	case "pagerduty":
-		rn.PagerDutyRecipient = *n.Spec.PagerDutyRecipient
-	}
+	rn.EmailRecipient = *n.EmailRecipient
+	rn.SlackRecipient = *n.SlackRecipient
+	rn.PagerDutyRecipient = *n.PagerDutyRecipient
 
 	rn.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("recipient", rn.Id)
 
@@ -257,35 +217,27 @@ func toRecipientCRD(rn *Recipient, env string) *v1beta1.Recipient {
 	n := &v1beta1.Recipient{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: rn.Id,
-			Labels: map[string]string{
-				"environment": env,
-				"type":        rn.RecipientType,
-			},
 		},
-	}
-
-	spec := v1beta1.RecipientSpec{
-		Type:               rn.RecipientType,
 		EmailRecipient:     &rn.EmailRecipient,
 		SlackRecipient:     &rn.SlackRecipient,
 		PagerDutyRecipient: &rn.PagerDutyRecipient,
 	}
 
-	n.Spec = spec
 	return n
 }
 
 func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 	ra := &Alert{
-		Name:         a.Spec.Name,
+		Description:  a.Description,
 		State:        "inactive",
-		SendResolved: a.Spec.SendResolved,
-		Severity:     a.Spec.Severity,
-		Object:       a.Spec.Object,
-		ObjectID:     a.Spec.ObjectID,
-		ServiceRule:  a.Spec.ServiceRule,
-		RecipientID:  a.Spec.RecipientID,
+		SendResolved: a.SendResolved,
+		Severity:     a.Severity,
+		Object:       a.Object,
+		ObjectID:     a.ObjectID,
+		ServiceRule:  a.ServiceRule,
+		RecipientID:  a.RecipientID,
 	}
+
 	ra.Resource = client.Resource{
 		//TODO: decide what should be id
 		Id:      a.Name,
@@ -305,15 +257,8 @@ func toAlertCRD(ra *Alert, env string) *v1beta1.Alert {
 	alert := &v1beta1.Alert{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: ra.Id,
-			Labels: map[string]string{
-				"environment": env,
-			},
 		},
-	}
-
-	//TODO: come up with util method for object transfermation
-	spec := v1beta1.AlertSpec{
-		Name:         ra.Name,
+		Description:  ra.Description,
 		SendResolved: ra.SendResolved,
 		Severity:     ra.Severity,
 		Object:       ra.Object,
@@ -321,6 +266,6 @@ func toAlertCRD(ra *Alert, env string) *v1beta1.Alert {
 		ServiceRule:  ra.ServiceRule,
 		RecipientID:  ra.RecipientID,
 	}
-	alert.Spec = spec
+
 	return alert
 }

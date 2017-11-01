@@ -83,9 +83,9 @@ func RunOperator(c *cli.Context) error {
 
 	kubeconfig := c.String("kubeconfig")
 	listenPort := c.String("listen-port")
-	//alertmanagerURL := c.String("alertmanager-url")
-	//alertmanagerSecretName := c.String("alertmanager-secret-name")
-	//alertmanagerConfig := c.String("alertmanager-config-file")
+	alertmanagerURL := c.String("alertmanager-url")
+	alertmanagerSecretName := c.String("alertmanager-secret-name")
+	alertmanagerConfig := c.String("alertmanager-config-file")
 
 	var config *rest.Config
 	var err error
@@ -107,7 +107,10 @@ func RunOperator(c *cli.Context) error {
 	logrus.Infof("Alertmanager operator running on %s", listenPort)
 	go http.ListenAndServe(":"+listenPort, router)
 
-	alertmanagerOperator := alertmanager.NewOperator(config)
+	alertmanagerOperator, err := alertmanager.NewOperator(config, alertmanagerURL, alertmanagerSecretName, alertmanagerConfig)
+	if err != nil {
+		panic(err.Error())
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	wg, ctx := errgroup.WithContext(ctx)
