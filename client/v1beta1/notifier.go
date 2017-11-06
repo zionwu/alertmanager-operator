@@ -51,7 +51,7 @@ func newNotifiers(r rest.Interface, c *dynamic.Client, namespace string) *notifi
 			&metav1.APIResource{
 				Kind:       NotifiersKind,
 				Name:       NotifierName,
-				Namespaced: true,
+				Namespaced: false,
 			},
 			namespace,
 		),

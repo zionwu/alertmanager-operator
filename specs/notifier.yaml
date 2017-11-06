@@ -13,6 +13,6 @@ emailConfig:
 slackConfig:
   slackApiUrl: zion.slack.com
 pagerdutyConfig:
-  pagerdutyUrl: zion.pagerduty.com
+  pagerdutyUrl: zion123.pagerduty.com
 
     

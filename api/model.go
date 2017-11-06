@@ -70,7 +70,7 @@ func NewServer(config *rest.Config) *Server {
 
 	mclient, err := v1beta1.NewForConfig(config)
 	//TODO: should not hardcode name space here
-	notifierClient := mclient.Notifiers(k8sapi.NamespaceDefault)
+	notifierClient := mclient.Notifiers(k8sapi.NamespaceAll)
 	recipientClient := mclient.Recipients(k8sapi.NamespaceDefault)
 	alertClient := mclient.Alerts(k8sapi.NamespaceDefault)
 
@@ -208,6 +208,9 @@ func toNotifierResource(apiContext *api.ApiContext, n *v1beta1.Notifier) *Notifi
 
 func toNotifierCRD(rn *Notifier, env string) *v1beta1.Notifier {
 	n := &v1beta1.Notifier{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: rn.Id,
+		},
 		EmailConfig:     &rn.EmailConfig,
 		SlackConfig:     &rn.SlackConfig,
 		PagerDutyConfig: &rn.PagerDutyConfig,
