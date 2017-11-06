@@ -74,6 +74,9 @@ func NewRouter(s *Server) *mux.Router {
 	r.Methods(http.MethodDelete).Path("/v5/alerts/{id}").Handler(f(schemas, s.deleteAlert))
 	r.Methods(http.MethodPut).Path("/v5/alerts/{id}").Handler(f(schemas, s.updateAlert))
 
+	//demo: get pod list
+	r.Methods(http.MethodGet).Path("/v5/pods").Handler(f(schemas, s.podList))
+
 	notifierActions := map[string]http.Handler{
 		"validate": f(schemas, s.validateNotifier),
 	}

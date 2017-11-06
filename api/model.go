@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 )
 
@@ -36,13 +37,17 @@ type Notifier struct {
 	PagerDutyConfig v1beta1.PagerDutyConfigSpec `json:"pagerdutyConfig"`
 }
 
+type Pod struct {
+	client.Resource
+}
+
 type Alert struct {
 	client.Resource
 	Description  string                  `json:"description"`
 	State        string                  `json:"state"`
 	SendResolved bool                    `json:"sendResolved"`
 	Severity     string                  `json:"severity"`
-	Object       string                  `json:"object"`
+	ObjectType   string                  `json:"objectType"`
 	ObjectID     string                  `json:"objectId"`
 	ServiceRule  v1beta1.ServiceRuleSpec `json:"serviceRule"`
 	RecipientID  string                  `json:"recipientId"`
@@ -88,8 +93,26 @@ func newSchema() *client.Schemas {
 	notifierSchema(schemas.AddType("notifier", Notifier{}))
 	recipientSchema(schemas.AddType("recipient", Recipient{}))
 	alertSchema(schemas.AddType("alert", Alert{}))
+	podSchema(schemas.AddType("pod", Pod{}))
 
 	return schemas
+}
+
+func podSchema(pod *client.Schema) {
+	pod.CollectionMethods = []string{http.MethodGet}
+}
+
+func toPodResource(apiContext *api.ApiContext, pod *v1.Pod) *Pod {
+	ra := &Pod{}
+	ra.Resource = client.Resource{
+		//TODO: decide what should be id
+		Id:      pod.Name,
+		Type:    "pod",
+		Actions: map[string]string{},
+		Links:   map[string]string{},
+	}
+
+	return ra
 }
 
 func alertSchema(alert *client.Schema) {
@@ -124,12 +147,12 @@ func alertSchema(alert *client.Schema) {
 	sendResolved.Default = false
 	alert.ResourceFields["sendResolved"] = sendResolved
 
-	object := alert.ResourceFields["object"]
-	object.Create = true
-	object.Update = true
-	object.Type = "enum"
-	object.Options = []string{"service", "container", "host", "custom"}
-	alert.ResourceFields["object"] = object
+	objectType := alert.ResourceFields["objectType"]
+	objectType.Create = true
+	objectType.Update = true
+	objectType.Type = "enum"
+	objectType.Options = []string{"service", "pod", "host", "custom"}
+	alert.ResourceFields["objectType"] = objectType
 
 	objectId := alert.ResourceFields["objectId"]
 	objectId.Create = true
@@ -232,7 +255,7 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 		State:        "inactive",
 		SendResolved: a.SendResolved,
 		Severity:     a.Severity,
-		Object:       a.Object,
+		ObjectType:   a.Object,
 		ObjectID:     a.ObjectID,
 		ServiceRule:  a.ServiceRule,
 		RecipientID:  a.RecipientID,
@@ -261,7 +284,7 @@ func toAlertCRD(ra *Alert, env string) *v1beta1.Alert {
 		Description:  ra.Description,
 		SendResolved: ra.SendResolved,
 		Severity:     ra.Severity,
-		Object:       ra.Object,
+		Object:       ra.ObjectType,
 		ObjectID:     ra.ObjectID,
 		ServiceRule:  ra.ServiceRule,
 		RecipientID:  ra.RecipientID,

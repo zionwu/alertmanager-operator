@@ -14,7 +14,7 @@ import (
 	"github.com/zionwu/alertmanager-operator/client"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
 	yaml "gopkg.in/yaml.v2"
-	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	//apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api"
@@ -37,7 +37,7 @@ type Operator struct {
 	alertSecretName    string
 	alertmanagerConfig string
 
-	crdclient    apiextensionsclient.Interface
+	//crdclient    apiextensionsclient.Interface
 	alertInf     cache.SharedIndexInformer
 	notifiertInf cache.SharedIndexInformer
 	recipentInf  cache.SharedIndexInformer
@@ -56,15 +56,16 @@ func NewOperator(config *rest.Config, alertManagerUrl string, alertSecretName st
 		return nil, errors.Wrap(err, "instantiating monitoring client failed")
 	}
 
-	crdclient, err := apiextensionsclient.NewForConfig(config)
-	if err != nil {
-		return nil, errors.Wrap(err, "instantiating apiextensions client failed")
-	}
+	/*
+		crdclient, err := apiextensionsclient.NewForConfig(config)
+		if err != nil {
+			return nil, errors.Wrap(err, "instantiating apiextensions client failed")
+		}*/
 
 	o := &Operator{
-		kclient:   kclient,
-		mclient:   mclient,
-		crdclient: crdclient,
+		kclient: kclient,
+		mclient: mclient,
+		//crdclient: crdclient,
 		//queue:              workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "alertmanager"),
 		alertManagerUrl:    alertManagerUrl,
 		alertSecretName:    alertSecretName,
