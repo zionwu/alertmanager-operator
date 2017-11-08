@@ -2,9 +2,7 @@ apiVersion: monitoring.rancher.io/v1beta1
 kind: Recipient
 metadata:
   name: receiver123
-  labels:
-    environment: default
-    type: email
+
 emailRecipient:
   address: test
 slackRecipient:

@@ -41,7 +41,7 @@ curl -X PUT -H 'Accept: application/json' -H 'Content-Type: application/json' -d
 curl -v -X PUT -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"name":"testslack2", "sendResolved":false, "severity":"info", "object":"service", "objectId":"123455", "serviceRule":{"unhealthyPercentage":"80"}, "recipientId":"5a71d6a5-da9e-41fd-ad3a-bf620c0a4763"}' 'http://127.0.0.1:8888/v5/alerts/'
 
 
-curl -X POST -d '[{"labels":{"environment":"default","alert_id":"7d211494-9ff9-45c8-8736-e051853ca34f"},"annotations":{},"startsAt":"2017-10-20T17:17:50.000Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"http://curl.com/ab123"}]' http://192.168.99.100:31285/api/alerts
+curl -X POST -d '[{"annotations":{"summary":"test", "description":"des", "runbook":"runbook"}, "labels":{"environment":"default1223","alert_id":"7d211494-9ff9-45c8-8736-e051853ca34f"},"startsAt":"2017-10-20T17:17:50.000Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"http://curl.com/ab123"}]' http://192.168.99.100:31285/api/alerts
 
 curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"recipientType":"slack", "emailRecipient":{"address":""},  "slackRecipient":{"channel":"#mon_test"}, "pagerdutyRecipient":{"serviceKey":""}}' 'http://127.0.0.1:8888/v5/recipient'
 curl -v -X POST -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{"recipientType":"email","emailRecipient":{"address":"test--"},"pagerdutyRecipient":{"serviceKey":null},"slackRecipient":{"channel":null}}' 'http://127.0.0.1:8888/v5/recipient'

@@ -70,8 +70,7 @@ func (s *Server) createNotifier(rw http.ResponseWriter, req *http.Request) (err 
 
 	notifier.Id = util.GenerateUUID()
 	//TODO: get env from request
-	env := "default"
-	n := toNotifierCRD(&notifier, env)
+	n := toNotifierCRD(&notifier)
 	_, err = s.notifierClient.Create(n)
 
 	if err != nil {
@@ -139,8 +138,7 @@ func (s *Server) updateNotifier(rw http.ResponseWriter, req *http.Request) (err 
 	}
 
 	notifier.Id = id
-	env := "default"
-	n := toNotifierCRD(&notifier, env)
+	n := toNotifierCRD(&notifier)
 	_, err = s.notifierClient.Update(n)
 
 	if err != nil {

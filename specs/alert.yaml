@@ -2,18 +2,20 @@ apiVersion: monitoring.rancher.io/v1beta1
 kind: Alert
 metadata:
   name: uuid
-  labels:
-    environment: default
 
 description: asd
-sendResolved: false
 severity: critical
-object: custom
-objecID: 1s1
-customAlertRule:
-  rate(http_url) > 100 
-serviceRule:
-  unhealthyPercentage: 80
+targetType: pod/node/deployment/statefulSet/daemonSet
+targetId: 1s1
+nodeRule: 
+  condition: NotReady/DiskPressure/MemoryPressure/OutOfDisk
+deploymentRule:
+  unavailablePercentage: 60
+daemonSetRule:
+  unavailablePercentage: 60
+statefulSetRule:
+  unavailablePercentage: 60
+
 recipientID: testabc
   
 

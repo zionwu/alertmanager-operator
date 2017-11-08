@@ -11,8 +11,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/alertmanager/dispatch"
 	alertconfig "github.com/zionwu/alertmanager-operator/alertmanager/config"
+	alertapi "github.com/zionwu/alertmanager-operator/api"
+
 	"github.com/zionwu/alertmanager-operator/client"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
+	"github.com/zionwu/alertmanager-operator/watch"
 	yaml "gopkg.in/yaml.v2"
 	//apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,24 +30,23 @@ const (
 	NSLabelName      = "namespace"
 	AlertIDLabelName = "alert_id"
 
-	resyncPeriod = 5 * time.Minute
+	resyncPeriod = 0
 )
 
 type Operator struct {
-	kclient            *kubernetes.Clientset
-	mclient            *client.Clientset
-	alertManagerUrl    string
-	alertSecretName    string
-	alertmanagerConfig string
+	kclient kubernetes.Interface
+	mclient client.Interface
+	cfg     *alertapi.Config
 
 	//crdclient    apiextensionsclient.Interface
 	alertInf     cache.SharedIndexInformer
 	notifiertInf cache.SharedIndexInformer
 	recipentInf  cache.SharedIndexInformer
 	//queue        workqueue.RateLimitingInterface
+	watchers map[string]watch.Watcher
 }
 
-func NewOperator(config *rest.Config, alertManagerUrl string, alertSecretName string, alertmanagerConfig string) (*Operator, error) {
+func NewOperator(config *rest.Config, cfg *alertapi.Config) (*Operator, error) {
 	// create the clientset
 	kclient, err := kubernetes.NewForConfig(config)
 	if err != nil {
@@ -67,9 +69,8 @@ func NewOperator(config *rest.Config, alertManagerUrl string, alertSecretName st
 		mclient: mclient,
 		//crdclient: crdclient,
 		//queue:              workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "alertmanager"),
-		alertManagerUrl:    alertManagerUrl,
-		alertSecretName:    alertSecretName,
-		alertmanagerConfig: alertmanagerConfig,
+		cfg:      cfg,
+		watchers: map[string]watch.Watcher{},
 	}
 
 	o.alertInf = cache.NewSharedIndexInformer(
@@ -148,7 +149,6 @@ func (c *Operator) Run(stopc <-chan struct{}) error {
 	}
 
 	//go c.worker()
-
 	go c.alertInf.Run(stopc)
 	go c.recipentInf.Run(stopc)
 	go c.notifiertInf.Run(stopc)
@@ -164,6 +164,11 @@ func (c *Operator) handleAlertAdd(obj interface{}) {
 	if err := c.makeConfig(alert, c.addRoute2Config); err != nil {
 		logrus.Errorf("Error whiling adding route: %v", err)
 	}
+	/*
+		watcher := watch.NewWatcher(alert, c.kclient, c.cfg)
+		c.watchers[alert.Name] = watcher
+		go watcher.Watch()
+	*/
 }
 
 func (c *Operator) handleAlertDelete(obj interface{}) {
@@ -173,6 +178,10 @@ func (c *Operator) handleAlertDelete(obj interface{}) {
 	if err := c.makeConfig(alert, c.deleteRoute2Config); err != nil {
 		logrus.Errorf("Error whiling deleting route: %v", err)
 	}
+
+	//c.watchers[alert.Name].Stop()
+	//delete(c.watchers, alert.Name)
+
 }
 
 func (c *Operator) handleAlertUpdate(oldObj, curObj interface{}) {
@@ -184,11 +193,14 @@ func (c *Operator) handleAlertUpdate(oldObj, curObj interface{}) {
 		return
 	}
 
+	//c.watchers[alert.Name].UpdateAlert(alert)
+
 	logrus.Infof("Update for alert: %v", alert)
 
 	if err := c.makeConfig(alert, c.updateRoute2Config); err != nil {
 		logrus.Errorf("Error whiling updating route: %v", err)
 	}
+
 }
 
 func (c *Operator) handleRecipientAdd(obj interface{}) {
@@ -265,7 +277,7 @@ func (c *Operator) makeConfig(obj interface{}, f func(string, interface{}) (stri
 	//TODO: should not hardcode the namespace
 	sClient := c.kclient.CoreV1().Secrets("default")
 
-	configSecret, err := sClient.Get(c.alertSecretName, metav1.GetOptions{})
+	configSecret, err := sClient.Get(c.cfg.SecretName, metav1.GetOptions{})
 	if err != nil {
 		logrus.Error("Error while getting secret: %v", err)
 		return err
@@ -447,7 +459,8 @@ func (c *Operator) addReceiver2Config(configStr string, r interface{}) (string, 
 		slack := &alertconfig.SlackConfig{
 			//TODO: set a better text content
 			Channel: recipient.SlackRecipient.Channel,
-			Text:    "pod {{ (index .Alerts 0).Labels.object_id}} is unhealthy",
+			Text:    "{{ (index .Alerts 0).Labels.target_type}} {{ (index .Alerts 0).Labels.target_id}} is unhealthy",
+			Pretext: "{{ (index .Alerts 0).Labels.description}}",
 			Title:   "Alert From Rancher",
 		}
 		receiver.SlackConfigs = append(receiver.SlackConfigs, slack)
@@ -490,7 +503,8 @@ func (c *Operator) updateReceiver2Config(configStr string, r interface{}) (strin
 			} else if recipient.SlackRecipient.Channel != "" {
 				slack := &alertconfig.SlackConfig{
 					Channel: recipient.SlackRecipient.Channel,
-					Text:    "pod {{ (index .Alerts 0).Labels.object_id}} is unhealthy",
+					Text:    "{{ (index .Alerts 0).Labels.target_type}} {{ (index .Alerts 0).Labels.target_id}} is unhealthy",
+					Pretext: "{{ (index .Alerts 0).Labels.description}}",
 					Title:   "Alert From Rancher",
 				}
 				item.SlackConfigs[0] = slack
@@ -577,7 +591,7 @@ func (c *Operator) updateNotifier2Config(configStr string, n interface{}) (strin
 func (c *Operator) reload() error {
 	//TODO: what is the wait time
 	time.Sleep(10 * time.Second)
-	resp, err := http.Post(c.alertManagerUrl+"/-/reload", "text/html", nil)
+	resp, err := http.Post(c.cfg.ManagerUrl+"/-/reload", "text/html", nil)
 	logrus.Infof("Reload alert manager configuration")
 	if err != nil {
 		return err
@@ -600,7 +614,7 @@ func (c *Operator) getActiveAlertListFromAlertManager(filter string) ([]*dispatc
 		Status string               `json:"status"`
 	}{}
 
-	req, err := http.NewRequest(http.MethodGet, c.alertManagerUrl+"/api/v1/alerts", nil)
+	req, err := http.NewRequest(http.MethodGet, c.cfg.ManagerUrl+"/api/v1/alerts", nil)
 	if err != nil {
 		return nil, err
 	}

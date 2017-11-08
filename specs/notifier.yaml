@@ -2,6 +2,7 @@ apiVersion: monitoring.rancher.io/v1beta1
 kind: Notifier
 metadata:
   name: notifier-email
+  
 emailConfig:
   smtpAuthIdentity: identity1
   smtpAuthPassword: abc123

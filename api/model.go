@@ -13,6 +13,11 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+type Config struct {
+	ManagerUrl string
+	SecretName string
+}
+
 type Server struct {
 	clientset       *kubernetes.Clientset
 	mclient         *v1beta1.MonitoringV1Client
@@ -43,14 +48,16 @@ type Pod struct {
 
 type Alert struct {
 	client.Resource
-	Description  string                  `json:"description"`
-	State        string                  `json:"state"`
-	SendResolved bool                    `json:"sendResolved"`
-	Severity     string                  `json:"severity"`
-	ObjectType   string                  `json:"objectType"`
-	ObjectID     string                  `json:"objectId"`
-	ServiceRule  v1beta1.ServiceRuleSpec `json:"serviceRule"`
-	RecipientID  string                  `json:"recipientId"`
+	Description     string                `json:"description"`
+	State           string                `json:"state"`
+	Severity        string                `json:"severity"`
+	TargetType      string                `json:"targetType"`
+	TargetID        string                `json:"targetId"`
+	NodeRule        *v1beta1.NodeRuleSpec `json:"nodeRule"`
+	DeploymentRule  *v1beta1.RuleSpec     `json:"deploymentRule"`
+	StatefulSetRule *v1beta1.RuleSpec     `json:"statefulSetRule"`
+	DaemonSetRule   *v1beta1.RuleSpec     `json:"daemonSetRule"`
+	RecipientID     string                `json:"recipientId"`
 }
 
 type Recipient struct {
@@ -138,26 +145,20 @@ func alertSchema(alert *client.Schema) {
 
 	description := alert.ResourceFields["description"]
 	description.Create = true
-	description.Update = true
+	description.Update = false
 	alert.ResourceFields["description"] = description
 
-	sendResolved := alert.ResourceFields["sendResolved"]
-	sendResolved.Create = true
-	sendResolved.Update = true
-	sendResolved.Default = false
-	alert.ResourceFields["sendResolved"] = sendResolved
+	targetType := alert.ResourceFields["targetType"]
+	targetType.Create = true
+	targetType.Update = false
+	targetType.Type = "enum"
+	targetType.Options = []string{"pod", "node", "deployment", "daemonSet", "statefulSet"}
+	alert.ResourceFields["targetType"] = targetType
 
-	objectType := alert.ResourceFields["objectType"]
-	objectType.Create = true
-	objectType.Update = true
-	objectType.Type = "enum"
-	objectType.Options = []string{"service", "pod", "host", "custom"}
-	alert.ResourceFields["objectType"] = objectType
-
-	objectId := alert.ResourceFields["objectId"]
-	objectId.Create = true
-	objectId.Update = true
-	alert.ResourceFields["objectId"] = objectId
+	targetId := alert.ResourceFields["targetId"]
+	targetId.Create = true
+	targetId.Update = false
+	alert.ResourceFields["targetId"] = targetId
 
 	recipientId := alert.ResourceFields["recipientId"]
 	recipientId.Create = true
@@ -168,15 +169,13 @@ func alertSchema(alert *client.Schema) {
 }
 
 func recipientSchema(recipient *client.Schema) {
-	//TODO: remove unsued method like post/delete
 	recipient.CollectionMethods = []string{http.MethodGet, http.MethodPost}
 	recipient.ResourceMethods = []string{http.MethodGet, http.MethodDelete, http.MethodPut}
 }
 
 func notifierSchema(notifier *client.Schema) {
-	//TODO: remove unsued method like post/delete
-	notifier.CollectionMethods = []string{http.MethodGet, http.MethodPost}
-	notifier.ResourceMethods = []string{http.MethodGet, http.MethodPut, http.MethodDelete}
+	notifier.CollectionMethods = []string{http.MethodGet}
+	notifier.ResourceMethods = []string{http.MethodGet, http.MethodPut}
 
 	notifier.ResourceActions = map[string]client.Action{
 		"validate": {
@@ -206,7 +205,7 @@ func toNotifierResource(apiContext *api.ApiContext, n *v1beta1.Notifier) *Notifi
 	return rn
 }
 
-func toNotifierCRD(rn *Notifier, env string) *v1beta1.Notifier {
+func toNotifierCRD(rn *Notifier) *v1beta1.Notifier {
 	n := &v1beta1.Notifier{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: rn.Id,
@@ -239,7 +238,7 @@ func toRecipientResource(apiContext *api.ApiContext, n *v1beta1.Recipient) *Reci
 	return rn
 }
 
-func toRecipientCRD(rn *Recipient, env string) *v1beta1.Recipient {
+func toRecipientCRD(rn *Recipient) *v1beta1.Recipient {
 	n := &v1beta1.Recipient{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: rn.Id,
@@ -254,14 +253,16 @@ func toRecipientCRD(rn *Recipient, env string) *v1beta1.Recipient {
 
 func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 	ra := &Alert{
-		Description:  a.Description,
-		State:        "inactive",
-		SendResolved: a.SendResolved,
-		Severity:     a.Severity,
-		ObjectType:   a.Object,
-		ObjectID:     a.ObjectID,
-		ServiceRule:  a.ServiceRule,
-		RecipientID:  a.RecipientID,
+		Description:     a.Description,
+		State:           "inactive",
+		Severity:        a.Severity,
+		TargetType:      a.TargetType,
+		TargetID:        a.TargetID,
+		RecipientID:     a.RecipientID,
+		NodeRule:        a.NodeRule,
+		DeploymentRule:  a.DeploymentRule,
+		StatefulSetRule: a.StatefulSetRule,
+		DaemonSetRule:   a.DaemonSetRule,
 	}
 
 	ra.Resource = client.Resource{
@@ -279,18 +280,20 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 	return ra
 }
 
-func toAlertCRD(ra *Alert, env string) *v1beta1.Alert {
+func toAlertCRD(ra *Alert) *v1beta1.Alert {
 	alert := &v1beta1.Alert{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: ra.Id,
 		},
-		Description:  ra.Description,
-		SendResolved: ra.SendResolved,
-		Severity:     ra.Severity,
-		Object:       ra.ObjectType,
-		ObjectID:     ra.ObjectID,
-		ServiceRule:  ra.ServiceRule,
-		RecipientID:  ra.RecipientID,
+		Description:     ra.Description,
+		Severity:        ra.Severity,
+		TargetType:      ra.TargetType,
+		TargetID:        ra.TargetID,
+		RecipientID:     ra.RecipientID,
+		NodeRule:        ra.NodeRule,
+		DeploymentRule:  ra.DeploymentRule,
+		StatefulSetRule: ra.StatefulSetRule,
+		DaemonSetRule:   ra.DaemonSetRule,
 	}
 
 	return alert

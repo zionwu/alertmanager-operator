@@ -50,10 +50,10 @@ func NewRouter(s *Server) *mux.Router {
 	//notifier route
 	r.Methods(http.MethodGet).Path("/v5/notifiers").Handler(f(schemas, s.notifiersList))
 	r.Methods(http.MethodGet).Path("/v5/notifier").Handler(f(schemas, s.notifiersList))
-	r.Methods(http.MethodPost).Path("/v5/notifiers").Handler(f(schemas, s.createNotifier))
-	r.Methods(http.MethodPost).Path("/v5/notifier").Handler(f(schemas, s.createNotifier))
+	//r.Methods(http.MethodPost).Path("/v5/notifiers").Handler(f(schemas, s.createNotifier))
+	//r.Methods(http.MethodPost).Path("/v5/notifier").Handler(f(schemas, s.createNotifier))
 	r.Methods(http.MethodGet).Path("/v5/notifiers/{id}").Handler(f(schemas, s.getNotifier))
-	r.Methods(http.MethodDelete).Path("/v5/notifiers/{id}").Handler(f(schemas, s.deleteNotifier))
+	//r.Methods(http.MethodDelete).Path("/v5/notifiers/{id}").Handler(f(schemas, s.deleteNotifier))
 	r.Methods(http.MethodPut).Path("/v5/notifiers/{id}").Handler(f(schemas, s.updateNotifier))
 
 	//recipient route
@@ -74,8 +74,14 @@ func NewRouter(s *Server) *mux.Router {
 	r.Methods(http.MethodDelete).Path("/v5/alerts/{id}").Handler(f(schemas, s.deleteAlert))
 	r.Methods(http.MethodPut).Path("/v5/alerts/{id}").Handler(f(schemas, s.updateAlert))
 
-	//demo: get pod list
+	//demo: get k8s resource
 	r.Methods(http.MethodGet).Path("/v5/pods").Handler(f(schemas, s.podList))
+	//r.Methods(http.MethodGet).Path("/v5/deployments").Handler(f(schemas, s.podList))
+	//r.Methods(http.MethodGet).Path("/v5/nodes").Handler(f(schemas, s.podList))
+	//r.Methods(http.MethodGet).Path("/v5/replicaSets").Handler(f(schemas, s.podList))
+	//r.Methods(http.MethodGet).Path("/v5/statefulSets").Handler(f(schemas, s.podList))
+	//r.Methods(http.MethodGet).Path("/v5/replicationControllers").Handler(f(schemas, s.podList))
+	//r.Methods(http.MethodGet).Path("/v5/daemonSets").Handler(f(schemas, s.podList))
 
 	notifierActions := map[string]http.Handler{
 		"validate": f(schemas, s.validateNotifier),

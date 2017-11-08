@@ -10,10 +10,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
-	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/rancher/go-rancher/api"
 	"github.com/rancher/go-rancher/client"
-	"github.com/zionwu/alertmanager-operator/alertmanager"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
 	"github.com/zionwu/alertmanager-operator/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -82,16 +80,6 @@ func (s *Server) alertsList(rw http.ResponseWriter, req *http.Request) (err erro
 	return nil
 }
 
-func setAlertState(item *Alert, activeAlerts []*dispatch.APIAlert) {
-
-	for _, alert := range activeAlerts {
-		if string(alert.Labels[alertmanager.AlertIDLabelName]) == item.Id {
-			item.State = "active"
-			return
-		}
-	}
-}
-
 func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err error) {
 	defer func() {
 		err = errors.Wrap(err, "unable to create alert")
@@ -122,9 +110,7 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 	}
 
 	alert.Id = util.GenerateUUID()
-	//TODO: get env from request
-	env := "default"
-	n := toAlertCRD(&alert, env)
+	n := toAlertCRD(&alert)
 	alertCRD, err := s.alertClient.Create(n)
 	if err != nil {
 		logrus.Errorf("Error while creating k8s CRD: %v", err)
@@ -210,8 +196,7 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 
 	alert.Id = id
 	//TODO: get env from request
-	env := "default"
-	n := toAlertCRD(&alert, env)
+	n := toAlertCRD(&alert)
 	_, err = s.alertClient.Update(n)
 
 	if err != nil {
@@ -235,16 +220,12 @@ func (s *Server) checkAlertParam(alert *Alert) error {
 		return fmt.Errorf("missing RecipientID")
 	}
 
-	if alert.ObjectType == "" {
-		return fmt.Errorf("missing Object")
+	if alert.TargetType == "" {
+		return fmt.Errorf("missing TargetType")
 	}
 
-	if alert.ObjectID == "" {
-		return fmt.Errorf("missing ObjectID")
-	}
-
-	if alert.ServiceRule.UnhealthyPercetage == "" {
-		return fmt.Errorf("missing percentage")
+	if alert.TargetID == "" {
+		return fmt.Errorf("missing TargetType")
 	}
 
 	return nil

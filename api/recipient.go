@@ -71,9 +71,7 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 	}
 
 	recipient.Id = util.GenerateUUID()
-	//TODO: get env from request
-	environment := "default"
-	n := toRecipientCRD(&recipient, environment)
+	n := toRecipientCRD(&recipient)
 	recipientCRD, err := s.recipientClient.Create(n)
 
 	if err != nil {
@@ -140,9 +138,8 @@ func (s *Server) updateRecipient(rw http.ResponseWriter, req *http.Request) (err
 	}
 
 	recipient.Id = id
-	//TODO: get env from request
-	env := "default"
-	n := toRecipientCRD(&recipient, env)
+
+	n := toRecipientCRD(&recipient)
 	_, err = s.recipientClient.Update(n)
 
 	if err != nil {
@@ -157,6 +154,6 @@ func (s *Server) updateRecipient(rw http.ResponseWriter, req *http.Request) (err
 
 func (s *Server) checkRecipientParam(recipient *Recipient) error {
 
-	//check only one of the recipient is not empty
+	//TODO: check only one of the recipient is not empty
 	return nil
 }

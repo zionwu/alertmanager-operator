@@ -20,6 +20,10 @@ import (
 
 var VERSION = "0.0.1"
 
+var (
+	cfg api.Config
+)
+
 func main() {
 	logrus.SetFormatter(&logrus.TextFormatter{ForceColors: true})
 
@@ -53,13 +57,6 @@ func main() {
 			EnvVar: "ALERTMANAGER_URL",
 			Value:  "http://192.168.99.100:31285",
 		},
-		//TODO: support using config file from local path
-		cli.StringFlag{
-			Name:   "alertmanager-config-file, f",
-			Usage:  "AlertManager config file location, if it is not empty, operator will first try to use local config file",
-			EnvVar: "ALERTMANAGER_CONFIG_FILE",
-			Value:  "alertmanager-config-file",
-		},
 		cli.StringFlag{
 			Name:   "alertmanager-secret-name, s",
 			Usage:  "AlertManager secret name",
@@ -71,8 +68,6 @@ func main() {
 	if err := app.Run(os.Args); err != nil {
 		logrus.Fatalf("Critical error: %v", err)
 	}
-	logrus.Info("Alertmanager operator started")
-
 }
 
 func RunOperator(c *cli.Context) error {
@@ -81,11 +76,12 @@ func RunOperator(c *cli.Context) error {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
+	cfg = api.Config{}
+
 	kubeconfig := c.String("kubeconfig")
 	listenPort := c.String("listen-port")
-	alertmanagerURL := c.String("alertmanager-url")
-	alertmanagerSecretName := c.String("alertmanager-secret-name")
-	alertmanagerConfig := c.String("alertmanager-config-file")
+	cfg.ManagerUrl = c.String("alertmanager-url")
+	cfg.SecretName = c.String("alertmanager-secret-name")
 
 	var config *rest.Config
 	var err error
@@ -107,7 +103,7 @@ func RunOperator(c *cli.Context) error {
 	logrus.Infof("Alertmanager operator running on %s", listenPort)
 	go http.ListenAndServe(":"+listenPort, router)
 
-	alertmanagerOperator, err := alertmanager.NewOperator(config, alertmanagerURL, alertmanagerSecretName, alertmanagerConfig)
+	alertmanagerOperator, err := alertmanager.NewOperator(config, &cfg)
 	if err != nil {
 		panic(err.Error())
 	}
