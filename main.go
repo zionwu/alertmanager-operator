@@ -55,7 +55,7 @@ func main() {
 			Name:   "alertmanager-url, u",
 			Usage:  "AlertManager access URL",
 			EnvVar: "ALERTMANAGER_URL",
-			Value:  "http://192.168.99.100:31285",
+			Value:  "http://192.168.99.103:31005",
 		},
 		cli.StringFlag{
 			Name:   "alertmanager-secret-name, s",

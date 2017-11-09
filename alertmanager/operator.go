@@ -164,11 +164,11 @@ func (c *Operator) handleAlertAdd(obj interface{}) {
 	if err := c.makeConfig(alert, c.addRoute2Config); err != nil {
 		logrus.Errorf("Error whiling adding route: %v", err)
 	}
-	/*
-		watcher := watch.NewWatcher(alert, c.kclient, c.cfg)
-		c.watchers[alert.Name] = watcher
-		go watcher.Watch()
-	*/
+
+	watcher := watch.NewWatcher(alert, c.kclient, c.cfg)
+	c.watchers[alert.Name] = watcher
+	go watcher.Watch()
+
 }
 
 func (c *Operator) handleAlertDelete(obj interface{}) {
@@ -179,8 +179,8 @@ func (c *Operator) handleAlertDelete(obj interface{}) {
 		logrus.Errorf("Error whiling deleting route: %v", err)
 	}
 
-	//c.watchers[alert.Name].Stop()
-	//delete(c.watchers, alert.Name)
+	c.watchers[alert.Name].Stop()
+	delete(c.watchers, alert.Name)
 
 }
 
@@ -193,7 +193,7 @@ func (c *Operator) handleAlertUpdate(oldObj, curObj interface{}) {
 		return
 	}
 
-	//c.watchers[alert.Name].UpdateAlert(alert)
+	c.watchers[alert.Name].UpdateAlert(alert)
 
 	logrus.Infof("Update for alert: %v", alert)
 

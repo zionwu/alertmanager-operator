@@ -32,9 +32,9 @@ func NewWatcher(alert *v1beta1.Alert, kclient kubernetes.Interface, cfg *api.Con
 		return newDeploymentWatcher(alert, kclient, cfg)
 	case "node":
 		return newNodeWatcher(alert, kclient, cfg)
-	case "statefulSet":
-		return newNodeWatcher(alert, kclient, cfg)
-	case "daemonSet":
+	case "statefulset":
+		return newStatefulSetWatcher(alert, kclient, cfg)
+	case "daemonset":
 		return newDaemonSetWatcher(alert, kclient, cfg)
 	}
 	return nil

@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api"
-	apiv1 "k8s.io/client-go/pkg/api/v1"
 	appv1beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 
 	"k8s.io/client-go/tools/cache"
@@ -24,10 +23,10 @@ type statefulSetWatcher struct {
 }
 
 func newStatefulSetWatcher(alert *v1beta1.Alert, kclient kubernetes.Interface, cfg *api.Config) Watcher {
-	rclient := kclient.Core().RESTClient()
+	rclient := kclient.Apps().RESTClient()
 
 	plw := cache.NewListWatchFromClient(rclient, "statefulsets", alert.Namespace, fields.OneTermEqualSelector(k8sapi.ObjectNameField, alert.TargetID))
-	informer := cache.NewSharedIndexInformer(plw, &apiv1.Pod{}, resyncPeriod, cache.Indexers{})
+	informer := cache.NewSharedIndexInformer(plw, &appv1beta1.StatefulSet{}, resyncPeriod, cache.Indexers{})
 	stopc := make(chan struct{})
 
 	statefulSetWatcher := &statefulSetWatcher{
@@ -70,18 +69,23 @@ func (w *statefulSetWatcher) handleDelete(obj interface{}) {
 func (w *statefulSetWatcher) handleUpdate(oldObj, curObj interface{}) {
 	oldStatefulSet, err := convertToStatefulSet(oldObj)
 	if err != nil {
-		logrus.Info("converting to StatefulSet object failed")
+		logrus.Error("converting to StatefulSet object failed")
 		return
 	}
 
 	curStatefulSet, err := convertToStatefulSet(curObj)
 	if err != nil {
-		logrus.Info("converting to StatefulSet object failed")
+		logrus.Error("converting to StatefulSet object failed")
 		return
 	}
 
 	if curStatefulSet.GetResourceVersion() != oldStatefulSet.GetResourceVersion() {
-		logrus.Infof("different version, will not check node status")
+		logrus.Infof("different version, will not check statefulset status")
+		return
+	}
+
+	if w.alert.StatefulSetRule == nil {
+		logrus.Errorf("The statefulset rules for %s should not be empty", w.alert.Name)
 		return
 	}
 
@@ -93,8 +97,9 @@ func (w *statefulSetWatcher) handleUpdate(oldObj, curObj interface{}) {
 		if err != nil {
 			logrus.Errorf("Error while sending alert: %v", err)
 		}
+	} else {
+		logrus.Debugf("%s is ok", w.alert.Description)
 	}
-
 }
 
 func convertToStatefulSet(o interface{}) (*appv1beta1.StatefulSet, error) {

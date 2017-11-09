@@ -12,7 +12,7 @@ emailConfig:
   smtpRequiredTls: false
   smtpSmartHost: '127.0.0.1'
 slackConfig:
-  slackApiUrl: zion.slack.com
+  slackApiUrl: https://hooks.slack.com/services/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
 pagerdutyConfig:
   pagerdutyUrl: zion123.pagerduty.com
 

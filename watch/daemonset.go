@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api"
-	apiv1 "k8s.io/client-go/pkg/api/v1"
 	ev1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	"k8s.io/client-go/tools/cache"
@@ -24,10 +23,10 @@ type daemonSetWatcher struct {
 }
 
 func newDaemonSetWatcher(alert *v1beta1.Alert, kclient kubernetes.Interface, cfg *api.Config) Watcher {
-	rclient := kclient.Core().RESTClient()
+	rclient := kclient.Extensions().RESTClient()
 
 	plw := cache.NewListWatchFromClient(rclient, "daemonsets", alert.Namespace, fields.OneTermEqualSelector(k8sapi.ObjectNameField, alert.TargetID))
-	informer := cache.NewSharedIndexInformer(plw, &apiv1.Pod{}, resyncPeriod, cache.Indexers{})
+	informer := cache.NewSharedIndexInformer(plw, &ev1beta1.DaemonSet{}, resyncPeriod, cache.Indexers{})
 	stopc := make(chan struct{})
 
 	daemonSetWatcher := &daemonSetWatcher{
@@ -70,18 +69,23 @@ func (w *daemonSetWatcher) handleDelete(obj interface{}) {
 func (w *daemonSetWatcher) handleUpdate(oldObj, curObj interface{}) {
 	oldDaemonSet, err := convertToDaemonSet(oldObj)
 	if err != nil {
-		logrus.Info("converting to DaemonSet object failed")
+		logrus.Error("converting to DaemonSet object failed")
 		return
 	}
 
 	curDaemonSet, err := convertToDaemonSet(curObj)
 	if err != nil {
-		logrus.Info("converting to DaemonSet object failed")
+		logrus.Error("converting to DaemonSet object failed")
 		return
 	}
 
 	if curDaemonSet.GetResourceVersion() != oldDaemonSet.GetResourceVersion() {
-		logrus.Infof("different version, will not check node status")
+		logrus.Infof("different version, will not check daemonset status")
+		return
+	}
+
+	if w.alert.DaemonSetRule == nil {
+		logrus.Errorf("The daemonset rules for %s should not be empty", w.alert.Name)
 		return
 	}
 
@@ -93,8 +97,9 @@ func (w *daemonSetWatcher) handleUpdate(oldObj, curObj interface{}) {
 		if err != nil {
 			logrus.Errorf("Error while sending alert: %v", err)
 		}
+	} else {
+		logrus.Debugf("%s is ok", w.alert.Description)
 	}
-
 }
 
 func convertToDaemonSet(o interface{}) (*ev1beta1.DaemonSet, error) {

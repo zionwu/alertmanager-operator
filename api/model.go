@@ -9,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api"
-	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 )
 
@@ -42,22 +41,18 @@ type Notifier struct {
 	PagerDutyConfig v1beta1.PagerDutyConfigSpec `json:"pagerdutyConfig"`
 }
 
-type Pod struct {
-	client.Resource
-}
-
 type Alert struct {
 	client.Resource
-	Description     string                `json:"description"`
-	State           string                `json:"state"`
-	Severity        string                `json:"severity"`
-	TargetType      string                `json:"targetType"`
-	TargetID        string                `json:"targetId"`
-	NodeRule        *v1beta1.NodeRuleSpec `json:"nodeRule"`
-	DeploymentRule  *v1beta1.RuleSpec     `json:"deploymentRule"`
-	StatefulSetRule *v1beta1.RuleSpec     `json:"statefulSetRule"`
-	DaemonSetRule   *v1beta1.RuleSpec     `json:"daemonSetRule"`
-	RecipientID     string                `json:"recipientId"`
+	Description     string               `json:"description"`
+	State           string               `json:"state"`
+	Severity        string               `json:"severity"`
+	TargetType      string               `json:"targetType"`
+	TargetID        string               `json:"targetId"`
+	NodeRule        v1beta1.NodeRuleSpec `json:"nodeRule"`
+	DeploymentRule  v1beta1.RuleSpec     `json:"deploymentRule"`
+	StatefulSetRule v1beta1.RuleSpec     `json:"statefulSetRule"`
+	DaemonSetRule   v1beta1.RuleSpec     `json:"daemonSetRule"`
+	RecipientID     string               `json:"recipientId"`
 }
 
 type Recipient struct {
@@ -100,26 +95,16 @@ func newSchema() *client.Schemas {
 	notifierSchema(schemas.AddType("notifier", Notifier{}))
 	recipientSchema(schemas.AddType("recipient", Recipient{}))
 	alertSchema(schemas.AddType("alert", Alert{}))
+
+	//for k8s resource
 	podSchema(schemas.AddType("pod", Pod{}))
+	nodeSchema(schemas.AddType("node", Node{}))
+	namespaceSchema(schemas.AddType("namespace", Namespace{}))
+	deploymentSchema(schemas.AddType("deployment", Deployment{}))
+	daemonsetSchema(schemas.AddType("daemonset", DaemonSet{}))
+	statefulsetSchema(schemas.AddType("statefulset", StatefulSet{}))
 
 	return schemas
-}
-
-func podSchema(pod *client.Schema) {
-	pod.CollectionMethods = []string{http.MethodGet}
-}
-
-func toPodResource(apiContext *api.ApiContext, pod *v1.Pod) *Pod {
-	ra := &Pod{}
-	ra.Resource = client.Resource{
-		//TODO: decide what should be id
-		Id:      pod.Name,
-		Type:    "pod",
-		Actions: map[string]string{},
-		Links:   map[string]string{},
-	}
-
-	return ra
 }
 
 func alertSchema(alert *client.Schema) {
@@ -152,7 +137,7 @@ func alertSchema(alert *client.Schema) {
 	targetType.Create = true
 	targetType.Update = false
 	targetType.Type = "enum"
-	targetType.Options = []string{"pod", "node", "deployment", "daemonSet", "statefulSet"}
+	targetType.Options = []string{"pod", "node", "deployment", "daemonset", "statefulset"}
 	alert.ResourceFields["targetType"] = targetType
 
 	targetId := alert.ResourceFields["targetId"]
@@ -259,10 +244,10 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 		TargetType:      a.TargetType,
 		TargetID:        a.TargetID,
 		RecipientID:     a.RecipientID,
-		NodeRule:        a.NodeRule,
-		DeploymentRule:  a.DeploymentRule,
-		StatefulSetRule: a.StatefulSetRule,
-		DaemonSetRule:   a.DaemonSetRule,
+		NodeRule:        *a.NodeRule,
+		DeploymentRule:  *a.DeploymentRule,
+		StatefulSetRule: *a.StatefulSetRule,
+		DaemonSetRule:   *a.DaemonSetRule,
 	}
 
 	ra.Resource = client.Resource{
@@ -290,10 +275,10 @@ func toAlertCRD(ra *Alert) *v1beta1.Alert {
 		TargetType:      ra.TargetType,
 		TargetID:        ra.TargetID,
 		RecipientID:     ra.RecipientID,
-		NodeRule:        ra.NodeRule,
-		DeploymentRule:  ra.DeploymentRule,
-		StatefulSetRule: ra.StatefulSetRule,
-		DaemonSetRule:   ra.DaemonSetRule,
+		NodeRule:        &ra.NodeRule,
+		DeploymentRule:  &ra.DeploymentRule,
+		StatefulSetRule: &ra.StatefulSetRule,
+		DaemonSetRule:   &ra.DaemonSetRule,
 	}
 
 	return alert

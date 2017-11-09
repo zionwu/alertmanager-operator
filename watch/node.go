@@ -24,8 +24,8 @@ type nodeWatcher struct {
 func newNodeWatcher(alert *v1beta1.Alert, kclient kubernetes.Interface, cfg *api.Config) Watcher {
 	rclient := kclient.Core().RESTClient()
 
-	plw := cache.NewListWatchFromClient(rclient, "nodes", alert.Namespace, fields.OneTermEqualSelector(k8sapi.ObjectNameField, alert.TargetID))
-	informer := cache.NewSharedIndexInformer(plw, &apiv1.Pod{}, resyncPeriod, cache.Indexers{})
+	plw := cache.NewListWatchFromClient(rclient, "nodes", "", fields.OneTermEqualSelector(k8sapi.ObjectNameField, alert.TargetID))
+	informer := cache.NewSharedIndexInformer(plw, &apiv1.Node{}, resyncPeriod, cache.Indexers{})
 	stopc := make(chan struct{})
 
 	nodeWatcher := &nodeWatcher{
@@ -66,22 +66,26 @@ func (w *nodeWatcher) handleDelete(obj interface{}) {
 }
 
 func (w *nodeWatcher) handleUpdate(oldObj, curObj interface{}) {
-	oldNode, err := convertToNode(oldObj)
-	if err != nil {
-		logrus.Info("converting to Node object failed")
-		return
-	}
+	/*
+		oldNode, err := convertToNode(oldObj)
+		if err != nil {
+			logrus.Info("converting to Node object failed")
+			return
+		}
+	*/
 
 	curNode, err := convertToNode(curObj)
 	if err != nil {
-		logrus.Info("converting to Node object failed")
+		logrus.Error("converting to Node object failed")
 		return
 	}
 
-	if curNode.GetResourceVersion() != oldNode.GetResourceVersion() {
-		logrus.Infof("different version, will not check node status")
-		return
-	}
+	/*
+		if curNode.GetResourceVersion() != oldNode.GetResourceVersion() {
+			logrus.Infof("different version, will not check node status")
+			return
+		}
+	*/
 
 	for _, condition := range curNode.Status.Conditions {
 		if w.alert.NodeRule.Condition == string(condition.Type) && string(condition.Status) == "True" {

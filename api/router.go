@@ -76,12 +76,11 @@ func NewRouter(s *Server) *mux.Router {
 
 	//demo: get k8s resource
 	r.Methods(http.MethodGet).Path("/v5/pods").Handler(f(schemas, s.podList))
-	//r.Methods(http.MethodGet).Path("/v5/deployments").Handler(f(schemas, s.podList))
-	//r.Methods(http.MethodGet).Path("/v5/nodes").Handler(f(schemas, s.podList))
-	//r.Methods(http.MethodGet).Path("/v5/replicaSets").Handler(f(schemas, s.podList))
-	//r.Methods(http.MethodGet).Path("/v5/statefulSets").Handler(f(schemas, s.podList))
-	//r.Methods(http.MethodGet).Path("/v5/replicationControllers").Handler(f(schemas, s.podList))
-	//r.Methods(http.MethodGet).Path("/v5/daemonSets").Handler(f(schemas, s.podList))
+	r.Methods(http.MethodGet).Path("/v5/deployments").Handler(f(schemas, s.deploymentList))
+	r.Methods(http.MethodGet).Path("/v5/nodes").Handler(f(schemas, s.nodeList))
+	r.Methods(http.MethodGet).Path("/v5/statefulsets").Handler(f(schemas, s.statefulsetList))
+	r.Methods(http.MethodGet).Path("/v5/daemonsets").Handler(f(schemas, s.daemonsetList))
+	r.Methods(http.MethodGet).Path("/v5/namespaces").Handler(f(schemas, s.namespaceList))
 
 	notifierActions := map[string]http.Handler{
 		"validate": f(schemas, s.validateNotifier),

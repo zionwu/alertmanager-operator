@@ -10,8 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api"
-	apiv1 "k8s.io/client-go/pkg/api/v1"
-	ev1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	appv1beta1 "k8s.io/client-go/pkg/apis/apps/v1beta1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -23,10 +22,10 @@ type deploymentWatcher struct {
 }
 
 func newDeploymentWatcher(alert *v1beta1.Alert, kclient kubernetes.Interface, cfg *api.Config) Watcher {
-	rclient := kclient.Core().RESTClient()
+	rclient := kclient.Apps().RESTClient()
 
 	plw := cache.NewListWatchFromClient(rclient, "deployments", alert.Namespace, fields.OneTermEqualSelector(k8sapi.ObjectNameField, alert.TargetID))
-	informer := cache.NewSharedIndexInformer(plw, &apiv1.Pod{}, resyncPeriod, cache.Indexers{})
+	informer := cache.NewSharedIndexInformer(plw, &appv1beta1.Deployment{}, resyncPeriod, cache.Indexers{})
 	stopc := make(chan struct{})
 
 	deploymentWatcher := &deploymentWatcher{
@@ -69,18 +68,23 @@ func (w *deploymentWatcher) handleDelete(obj interface{}) {
 func (w *deploymentWatcher) handleUpdate(oldObj, curObj interface{}) {
 	oldDeployment, err := convertToDeployment(oldObj)
 	if err != nil {
-		logrus.Info("converting to Deployment object failed")
+		logrus.Error("converting to Deployment object failed")
 		return
 	}
 
 	curDeployment, err := convertToDeployment(curObj)
 	if err != nil {
-		logrus.Info("converting to Deployment object failed")
+		logrus.Error("converting to Deployment object failed")
 		return
 	}
 
 	if curDeployment.GetResourceVersion() != oldDeployment.GetResourceVersion() {
-		logrus.Infof("different version, will not check node status")
+		logrus.Infof("different version, will not check deployment status")
+		return
+	}
+
+	if w.alert.DeploymentRule == nil {
+		logrus.Errorf("The deployment rules for %s should not be empty", w.alert.Name)
 		return
 	}
 
@@ -92,18 +96,19 @@ func (w *deploymentWatcher) handleUpdate(oldObj, curObj interface{}) {
 		if err != nil {
 			logrus.Errorf("Error while sending alert: %v", err)
 		}
+	} else {
+		logrus.Debugf("%s is ok", w.alert.Description)
 	}
-
 }
 
-func convertToDeployment(o interface{}) (*ev1beta1.Deployment, error) {
-	d, isDeployment := o.(*ev1beta1.Deployment)
+func convertToDeployment(o interface{}) (*appv1beta1.Deployment, error) {
+	d, isDeployment := o.(*appv1beta1.Deployment)
 	if !isDeployment {
 		deletedState, ok := o.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			return nil, fmt.Errorf("Received unexpected object: %v", o)
 		}
-		d, ok = deletedState.Obj.(*ev1beta1.Deployment)
+		d, ok = deletedState.Obj.(*appv1beta1.Deployment)
 		if !ok {
 			return nil, fmt.Errorf("DeletedFinalStateUnknown contained non-Pod object: %v", deletedState.Obj)
 		}
