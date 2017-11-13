@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -105,6 +106,22 @@ func (s *Server) deleteRecipient(rw http.ResponseWriter, req *http.Request) (err
 
 	//apiContext := api.GetApiContext(req)
 	id := mux.Vars(req)["id"]
+
+	//can not use filed selector for CRD, https://github.com/kubernetes/kubernetes/issues/51046
+	// need to filter it ourselves
+	l, err := s.alertClient.List(metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	alerts := l.(*v1beta1.AlertList)
+	if len(alerts.Items) != 0 {
+		for _, item := range alerts.Items {
+			if item.RecipientID == id {
+				return fmt.Errorf("The recipient %s is still in used", id)
+			}
+		}
+	}
+
 	opt := metav1.DeleteOptions{}
 	err = s.recipientClient.Delete(id, &opt)
 	if err != nil {

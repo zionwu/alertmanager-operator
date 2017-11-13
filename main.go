@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/Sirupsen/logrus"
@@ -43,7 +42,7 @@ func main() {
 			Name:   "kubeconfig, k",
 			Usage:  "(optional) absolute path to the kubeconfig file",
 			EnvVar: "KUBECONFIG",
-			Value:  filepath.Join("/Users/wuziyang/", ".kube", "config"),
+			Value:  "",
 		},
 		cli.StringFlag{
 			Name:   "listen-port, l",
@@ -55,7 +54,7 @@ func main() {
 			Name:   "alertmanager-url, u",
 			Usage:  "AlertManager access URL",
 			EnvVar: "ALERTMANAGER_URL",
-			Value:  "http://192.168.99.103:31005",
+			Value:  "http://alertmanager2:9093",
 		},
 		cli.StringFlag{
 			Name:   "alertmanager-secret-name, s",

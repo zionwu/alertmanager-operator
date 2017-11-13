@@ -43,16 +43,18 @@ type Notifier struct {
 
 type Alert struct {
 	client.Resource
-	Description     string               `json:"description"`
-	State           string               `json:"state"`
-	Severity        string               `json:"severity"`
-	TargetType      string               `json:"targetType"`
-	TargetID        string               `json:"targetId"`
-	NodeRule        v1beta1.NodeRuleSpec `json:"nodeRule"`
-	DeploymentRule  v1beta1.RuleSpec     `json:"deploymentRule"`
-	StatefulSetRule v1beta1.RuleSpec     `json:"statefulSetRule"`
-	DaemonSetRule   v1beta1.RuleSpec     `json:"daemonSetRule"`
-	RecipientID     string               `json:"recipientId"`
+	Description     string                      `json:"description"`
+	State           string                      `json:"state"`
+	Severity        string                      `json:"severity"`
+	TargetType      string                      `json:"targetType"`
+	TargetID        string                      `json:"targetId"`
+	NodeRule        v1beta1.NodeRuleSpec        `json:"nodeRule"`
+	DeploymentRule  v1beta1.RuleSpec            `json:"deploymentRule"`
+	StatefulSetRule v1beta1.RuleSpec            `json:"statefulSetRule"`
+	DaemonSetRule   v1beta1.RuleSpec            `json:"daemonSetRule"`
+	AdvancedOptions v1beta1.AdvancedOptionsSpec `json:"advancedOptions"`
+
+	RecipientID string `json:"recipientId"`
 }
 
 type Recipient struct {
@@ -248,6 +250,7 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 		DeploymentRule:  *a.DeploymentRule,
 		StatefulSetRule: *a.StatefulSetRule,
 		DaemonSetRule:   *a.DaemonSetRule,
+		AdvancedOptions: *a.AdvancedOptions,
 	}
 
 	ra.Resource = client.Resource{
@@ -279,6 +282,7 @@ func toAlertCRD(ra *Alert) *v1beta1.Alert {
 		DeploymentRule:  &ra.DeploymentRule,
 		StatefulSetRule: &ra.StatefulSetRule,
 		DaemonSetRule:   &ra.DaemonSetRule,
+		AdvancedOptions: &ra.AdvancedOptions,
 	}
 
 	return alert

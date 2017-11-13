@@ -9,15 +9,22 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/pkg/errors"
+	"github.com/prometheus/common/model"
+
 	"github.com/prometheus/alertmanager/dispatch"
 	alertconfig "github.com/zionwu/alertmanager-operator/alertmanager/config"
 	alertapi "github.com/zionwu/alertmanager-operator/api"
+
+	"github.com/zionwu/alertmanager-operator/util"
 
 	"github.com/zionwu/alertmanager-operator/client"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
 	"github.com/zionwu/alertmanager-operator/watch"
 	yaml "gopkg.in/yaml.v2"
-	//apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	extensionsobj "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api"
@@ -38,7 +45,7 @@ type Operator struct {
 	mclient client.Interface
 	cfg     *alertapi.Config
 
-	//crdclient    apiextensionsclient.Interface
+	crdclient    apiextensionsclient.Interface
 	alertInf     cache.SharedIndexInformer
 	notifiertInf cache.SharedIndexInformer
 	recipentInf  cache.SharedIndexInformer
@@ -58,16 +65,15 @@ func NewOperator(config *rest.Config, cfg *alertapi.Config) (*Operator, error) {
 		return nil, errors.Wrap(err, "instantiating monitoring client failed")
 	}
 
-	/*
-		crdclient, err := apiextensionsclient.NewForConfig(config)
-		if err != nil {
-			return nil, errors.Wrap(err, "instantiating apiextensions client failed")
-		}*/
+	crdclient, err := apiextensionsclient.NewForConfig(config)
+	if err != nil {
+		return nil, errors.Wrap(err, "instantiating apiextensions client failed")
+	}
 
 	o := &Operator{
-		kclient: kclient,
-		mclient: mclient,
-		//crdclient: crdclient,
+		kclient:   kclient,
+		mclient:   mclient,
+		crdclient: crdclient,
 		//queue:              workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "alertmanager"),
 		cfg:      cfg,
 		watchers: map[string]watch.Watcher{},
@@ -128,13 +134,17 @@ func (c *Operator) Run(stopc <-chan struct{}) error {
 			return
 		}
 		logrus.Infof("connection established, cluster-version: %v", v)
-		/*
-			TODO: create the CRD, ETA 10.31
-			if err := c.createCRDs(); err != nil {
-				errChan <- errors.Wrap(err, "creating CRDs failed")
-				return
-			}
-		*/
+
+		if err := c.createCRDs(); err != nil {
+			errChan <- errors.Wrap(err, "creating CRDs failed")
+			return
+		}
+
+		if err := c.createNotifier(); err != nil {
+			errChan <- errors.Wrap(err, "creating Notifier failed")
+			return
+		}
+
 		errChan <- nil
 	}()
 
@@ -329,7 +339,10 @@ func (c *Operator) addRoute2Config(configStr string, a interface{}) (string, err
 	if envRoute == nil {
 		match := map[string]string{}
 		match[NSLabelName] = alert.Namespace
-		envRoute = &alertconfig.Route{Match: match, Routes: []*alertconfig.Route{}}
+		envRoute = &alertconfig.Route{
+			Match:  match,
+			Routes: []*alertconfig.Route{},
+		}
 		*envRoutes = append(*envRoutes, envRoute)
 	}
 
@@ -345,6 +358,22 @@ func (c *Operator) addRoute2Config(configStr string, a interface{}) (string, err
 		Receiver: alert.RecipientID,
 		Match:    match,
 	}
+	if alert.AdvancedOptions != nil {
+		gw, err := model.ParseDuration(alert.AdvancedOptions.GroupWait)
+		if err == nil {
+			route.GroupWait = &gw
+		}
+		gi, err := model.ParseDuration(alert.AdvancedOptions.GroupInterval)
+		if err == nil {
+			route.GroupInterval = &gi
+		}
+		ri, err := model.ParseDuration(alert.AdvancedOptions.RepeatInterval)
+		if err == nil {
+			route.RepeatInterval = &ri
+		}
+
+	}
+
 	envRoute.Routes = append(envRoute.Routes, route)
 
 	//update the secret
@@ -642,4 +671,52 @@ func (c *Operator) getActiveAlertListFromAlertManager(filter string) ([]*dispatc
 	}
 
 	return res.Data, nil
+}
+
+func (c *Operator) createCRDs() error {
+	crds := []*extensionsobj.CustomResourceDefinition{
+		util.NewAlertCustomResourceDefinition(),
+		util.NewNotifierCustomResourceDefinition(),
+		util.NewRecipientCustomResourceDefinition(),
+	}
+
+	crdClient := c.crdclient.ApiextensionsV1beta1().CustomResourceDefinitions()
+
+	for _, crd := range crds {
+		if _, err := crdClient.Create(crd); err != nil && !apierrors.IsAlreadyExists(err) {
+			return errors.Wrapf(err, "Creating CRD: %s", crd.Spec.Names.Kind)
+		}
+		logrus.Infof("msg", "CRD created", "crd", crd.Spec.Names.Kind)
+	}
+
+	// We have to wait for the CRDs to be ready. Otherwise the initial watch may fail.
+	err := util.WaitForCRDReady(c.mclient.MonitoringV1().Alerts(api.NamespaceAll).List)
+	if err != nil {
+		return err
+	}
+	err = util.WaitForCRDReady(c.mclient.MonitoringV1().Notifiers(api.NamespaceAll).List)
+	if err != nil {
+		return err
+	}
+	return util.WaitForCRDReady(c.mclient.MonitoringV1().Recipients(api.NamespaceAll).List)
+}
+
+func (c *Operator) createNotifier() error {
+
+	nclient := c.mclient.MonitoringV1().Notifiers(api.NamespaceAll)
+	notifier := &v1beta1.Notifier{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "rancher-notifier",
+		},
+		EmailConfig:     &v1beta1.EmailConfigSpec{},
+		SlackConfig:     &v1beta1.SlackConfigSpec{},
+		PagerDutyConfig: &v1beta1.PagerDutyConfigSpec{},
+	}
+	_, err := nclient.Create(notifier)
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return errors.Wrapf(err, "Getting notifier")
+	}
+
+	return nil
+
 }

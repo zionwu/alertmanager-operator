@@ -93,8 +93,16 @@ type Alert struct {
 	StatefulSetRule *RuleSpec     `json:"statefulSetRule, omitempty"`
 	DaemonSetRule   *RuleSpec     `json:"daemonSetRule, omitempty"`
 
+	AdvancedOptions *AdvancedOptionsSpec `json:"advancedOptions, omitempty"`
+
 	//TODO: check what should do with status
 	Status *AlertStatus `json:"status,omitempty"`
+}
+
+type AdvancedOptionsSpec struct {
+	GroupWait      string `json:"groupWait, omitempty"`
+	GroupInterval  string `json:"groupInterval, omitempty"`
+	RepeatInterval string `json:"repeatInterval, omitempty"`
 }
 
 type NodeRuleSpec struct {

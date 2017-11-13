@@ -1,0 +1,99 @@
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: alertmanager-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alertmanager-operator
+subjects:
+- kind: ServiceAccount
+  name: alertmanager-operator
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: alertmanager-operator
+rules:
+- apiGroups:
+  - extensions
+  resources:
+  - daemonsets
+  verbs: ["list", "get", "watch"]
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - "*"
+- apiGroups:
+  - monitoring.rancher.io
+  resources:
+  - alerts
+  - recipients
+  - notifiers
+  verbs:
+  - "*"
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  - deployments
+  verbs: ["list", "get", "watch"]
+- apiGroups: [""]
+  resources:
+  - secrets
+  resourceNames: ["alertmanager-config2"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources:
+  - pods
+  - nodes
+  - namespaces
+  verbs: ["list", "get", "watch"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alertmanager-operator
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    k8s-app: alertmanager-operator
+  name: alertmanager-operator
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        k8s-app: alertmanager-operator
+    spec:
+      containers:
+      - image: registry.cn-shenzhen.aliyuncs.com/zionwu/monitoring:v0.0.3
+        name: alertmanager-operator
+        args: 
+        - "alertmanager-operator"
+        - "--kubeconfig"
+        - ""
+        ports:
+        - containerPort: 8888
+          name: http
+      serviceAccountName: alertmanager-operator
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    k8s-app: alertmanager-operator
+  name: alertmanager-operator-svc
+spec:
+  type: NodePort
+  selector:
+    k8s-app: alertmanager-operator
+  ports:
+  - name: sport
+    port: 8888
