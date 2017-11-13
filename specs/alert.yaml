@@ -15,13 +15,14 @@ daemonSetRule:
   unavailablePercentage: 60
 statefulSetRule:
   unavailablePercentage: 60
-  
+
 advancedOptions:
   groupWait:  "30s"
   groupInterval: "5m"
   repeatInterval: "4h"
 
 recipientId: testabc
+state: inactive/active
   
 
 

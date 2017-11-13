@@ -1,8 +1,6 @@
 package alertmanager
 
 import (
-	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -11,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/dispatch"
 	alertconfig "github.com/zionwu/alertmanager-operator/alertmanager/config"
 	alertapi "github.com/zionwu/alertmanager-operator/api"
 
@@ -49,6 +46,8 @@ type Operator struct {
 	alertInf     cache.SharedIndexInformer
 	notifiertInf cache.SharedIndexInformer
 	recipentInf  cache.SharedIndexInformer
+
+	synchronizer Synchronizer
 	//queue        workqueue.RateLimitingInterface
 	watchers map[string]watch.Watcher
 }
@@ -97,8 +96,8 @@ func NewOperator(config *rest.Config, cfg *alertapi.Config) (*Operator, error) {
 
 	o.notifiertInf = cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc:  o.mclient.MonitoringV1().Notifiers(api.NamespaceAll).List,
-			WatchFunc: o.mclient.MonitoringV1().Notifiers(api.NamespaceAll).Watch,
+			ListFunc:  o.mclient.MonitoringV1().Notifiers().List,
+			WatchFunc: o.mclient.MonitoringV1().Notifiers().Watch,
 		},
 		&v1beta1.Notifier{}, resyncPeriod, cache.Indexers{},
 	)
@@ -118,6 +117,8 @@ func NewOperator(config *rest.Config, cfg *alertapi.Config) (*Operator, error) {
 		DeleteFunc: o.handleNotifierDelete,
 		UpdateFunc: o.handleNotifierUpdate,
 	})
+
+	o.synchronizer = NewSynchronizer(cfg, mclient)
 
 	return o, nil
 }
@@ -162,6 +163,7 @@ func (c *Operator) Run(stopc <-chan struct{}) error {
 	go c.alertInf.Run(stopc)
 	go c.recipentInf.Run(stopc)
 	go c.notifiertInf.Run(stopc)
+	go c.synchronizer.Run(stopc)
 
 	<-stopc
 	return nil
@@ -635,44 +637,6 @@ func (c *Operator) reload() error {
 	return nil
 }
 
-//TODO: decide which package should this function be
-func (c *Operator) getActiveAlertListFromAlertManager(filter string) ([]*dispatch.APIAlert, error) {
-
-	res := struct {
-		Data   []*dispatch.APIAlert `json:"data"`
-		Status string               `json:"status"`
-	}{}
-
-	req, err := http.NewRequest(http.MethodGet, c.cfg.ManagerUrl+"/api/v1/alerts", nil)
-	if err != nil {
-		return nil, err
-	}
-	q := req.URL.Query()
-	q.Add("filter", fmt.Sprintf("{%s}", filter))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	requestBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := json.Unmarshal(requestBytes, &res); err != nil {
-		return nil, err
-	}
-
-	return res.Data, nil
-}
-
 func (c *Operator) createCRDs() error {
 	crds := []*extensionsobj.CustomResourceDefinition{
 		util.NewAlertCustomResourceDefinition(),
@@ -694,7 +658,7 @@ func (c *Operator) createCRDs() error {
 	if err != nil {
 		return err
 	}
-	err = util.WaitForCRDReady(c.mclient.MonitoringV1().Notifiers(api.NamespaceAll).List)
+	err = util.WaitForCRDReady(c.mclient.MonitoringV1().Notifiers().List)
 	if err != nil {
 		return err
 	}
@@ -703,7 +667,7 @@ func (c *Operator) createCRDs() error {
 
 func (c *Operator) createNotifier() error {
 
-	nclient := c.mclient.MonitoringV1().Notifiers(api.NamespaceAll)
+	nclient := c.mclient.MonitoringV1().Notifiers()
 	notifier := &v1beta1.Notifier{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "rancher-notifier",

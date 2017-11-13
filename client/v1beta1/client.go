@@ -26,8 +26,8 @@ type MonitoringV1Client struct {
 	dynamicClient *dynamic.Client
 }
 
-func (c *MonitoringV1Client) Notifiers(namespace string) NotifierInterface {
-	return newNotifiers(c.restClient, c.dynamicClient, namespace)
+func (c *MonitoringV1Client) Notifiers() NotifierInterface {
+	return newNotifiers(c.restClient, c.dynamicClient)
 }
 
 func (c *MonitoringV1Client) Recipients(namespace string) RecipientInterface {

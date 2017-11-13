@@ -22,8 +22,13 @@ func (s *Server) alertsList(rw http.ResponseWriter, req *http.Request) (err erro
 		err = errors.Wrap(err, "unable to list alert")
 	}()
 
-	opt := metav1.ListOptions{}
-	l, err := s.alertClient.List(opt)
+	namespace := metav1.NamespaceAll
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+
+	l, err := s.mclient.MonitoringV1().Alerts(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		logrus.Errorf("Error while listing k8s alert CRD: %v", err)
 		return err
@@ -60,7 +65,7 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 		logrus.Errorf("Error while reading request body: %v", err)
 		return err
 	}
-	alert := Alert{}
+	alert := Alert{State: "inactive"}
 
 	if err := json.Unmarshal(requestBytes, &alert); err != nil {
 		logrus.Errorf("Error while unmarshal the request: %v", err)
@@ -72,7 +77,7 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 	}
 
 	//check if the recipient exists
-	_, err = s.recipientClient.Get(alert.RecipientID, metav1.GetOptions{})
+	_, err = s.mclient.MonitoringV1().Recipients(alert.Namespace).Get(alert.RecipientID, metav1.GetOptions{})
 	if err != nil {
 		logrus.Errorf("Error while geting the recipient CRD: %v", err)
 		return errors.Wrap(err, "unable to find the recipient")
@@ -80,7 +85,7 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 
 	alert.Id = util.GenerateUUID()
 	n := toAlertCRD(&alert)
-	alertCRD, err := s.alertClient.Create(n)
+	alertCRD, err := s.mclient.MonitoringV1().Alerts(alert.Namespace).Create(n)
 	if err != nil {
 		logrus.Errorf("Error while creating k8s CRD: %v", err)
 		return err
@@ -97,8 +102,17 @@ func (s *Server) getAlert(rw http.ResponseWriter, req *http.Request) (err error)
 	apiContext := api.GetApiContext(req)
 
 	id := mux.Vars(req)["id"]
-	opt := metav1.GetOptions{}
-	n, err := s.alertClient.Get(id, opt)
+
+	var namespace string
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+	if namespace == "" {
+		return fmt.Errorf("Namespace should not be empty")
+	}
+
+	n, err := s.mclient.MonitoringV1().Alerts(namespace).Get(id, metav1.GetOptions{})
 	if err != nil {
 		logrus.Errorf("Error while getting k8s alert CRD: %v", err)
 		return err
@@ -113,18 +127,24 @@ func (s *Server) getAlert(rw http.ResponseWriter, req *http.Request) (err error)
 
 func (s *Server) deleteAlert(rw http.ResponseWriter, req *http.Request) (err error) {
 
-	//apiContext := api.GetApiContext(req)
 	id := mux.Vars(req)["id"]
 
-	getOpt := metav1.GetOptions{}
-	_, err = s.alertClient.Get(id, getOpt)
+	var namespace string
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+	if namespace == "" {
+		return fmt.Errorf("Namespace should not be empty")
+	}
+
+	_, err = s.mclient.MonitoringV1().Alerts(namespace).Get(id, metav1.GetOptions{})
 	if err != nil {
 		logrus.Errorf("Error while getting k8s alert CRD: %v", err)
 		return err
 	}
 
-	opt := metav1.DeleteOptions{}
-	err = s.alertClient.Delete(id, &opt)
+	err = s.mclient.MonitoringV1().Alerts(namespace).Delete(id, &metav1.DeleteOptions{})
 	if err != nil {
 		logrus.Errorf("Error while deleting k8s alert CRD", err)
 		return err
@@ -145,7 +165,7 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 
-	alert := Alert{}
+	alert := Alert{State: "inactive"}
 
 	if err := json.Unmarshal(requestBytes, &alert); err != nil {
 		logrus.Errorf("Error while unmarshal the request: %v", err)
@@ -157,7 +177,7 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 	}
 
 	//check if the recipient exists
-	_, err = s.recipientClient.Get(alert.RecipientID, metav1.GetOptions{})
+	_, err = s.mclient.MonitoringV1().Recipients(alert.Namespace).Get(alert.RecipientID, metav1.GetOptions{})
 	if err != nil {
 		logrus.Errorf("Error while geting the recipient CRD: %v", err)
 		return errors.Wrap(err, "unable to find the recipient")
@@ -166,7 +186,7 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 	alert.Id = id
 	//TODO: get env from request
 	n := toAlertCRD(&alert)
-	_, err = s.alertClient.Update(n)
+	_, err = s.mclient.MonitoringV1().Alerts(alert.Namespace).Update(n)
 
 	if err != nil {
 		logrus.Errorf("Error while updating k8s alert CRD", err)

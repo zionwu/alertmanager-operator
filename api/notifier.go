@@ -20,8 +20,7 @@ func (s *Server) notifiersList(rw http.ResponseWriter, req *http.Request) (err e
 		err = errors.Wrap(err, "unable to list notifier")
 	}()
 
-	opt := metav1.ListOptions{}
-	l, err := s.notifierClient.List(opt)
+	l, err := s.mclient.MonitoringV1().Notifiers().List(metav1.ListOptions{})
 	if err != nil {
 		logrus.Errorf("Error while listing notifier CRD", err)
 		return err
@@ -71,7 +70,7 @@ func (s *Server) createNotifier(rw http.ResponseWriter, req *http.Request) (err 
 	notifier.Id = util.GenerateUUID()
 	//TODO: get env from request
 	n := toNotifierCRD(&notifier)
-	_, err = s.notifierClient.Create(n)
+	_, err = s.mclient.MonitoringV1().Notifiers().Create(n)
 
 	if err != nil {
 		logrus.Error("Error while creating notifier CRD: %s", err)
@@ -90,7 +89,7 @@ func (s *Server) getNotifier(rw http.ResponseWriter, req *http.Request) (err err
 
 	id := mux.Vars(req)["id"]
 	opt := metav1.GetOptions{}
-	n, err := s.notifierClient.Get(id, opt)
+	n, err := s.mclient.MonitoringV1().Notifiers().Get(id, opt)
 
 	if err != nil {
 		logrus.Error("Error while getting notifier CRD: %s", err)
@@ -107,7 +106,7 @@ func (s *Server) deleteNotifier(rw http.ResponseWriter, req *http.Request) (err 
 	//TODO: if it is in used, not allow to delete
 	id := mux.Vars(req)["id"]
 	opt := metav1.DeleteOptions{}
-	err = s.notifierClient.Delete(id, &opt)
+	err = s.mclient.MonitoringV1().Notifiers().Delete(id, &opt)
 	if err != nil {
 		logrus.Error("Error while deleting notifier CRD: %s", err)
 		return err
@@ -139,7 +138,7 @@ func (s *Server) updateNotifier(rw http.ResponseWriter, req *http.Request) (err 
 
 	notifier.Id = id
 	n := toNotifierCRD(&notifier)
-	_, err = s.notifierClient.Update(n)
+	_, err = s.mclient.MonitoringV1().Notifiers().Update(n)
 
 	if err != nil {
 		logrus.Error("Error while updating notifier CRD %s", err)

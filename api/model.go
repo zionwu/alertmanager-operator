@@ -5,10 +5,10 @@ import (
 
 	"github.com/rancher/go-rancher/api"
 	"github.com/rancher/go-rancher/client"
+	mclient "github.com/zionwu/alertmanager-operator/client"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	k8sapi "k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/rest"
 )
 
@@ -18,11 +18,8 @@ type Config struct {
 }
 
 type Server struct {
-	clientset       *kubernetes.Clientset
-	mclient         *v1beta1.MonitoringV1Client
-	notifierClient  v1beta1.NotifierInterface
-	recipientClient v1beta1.RecipientInterface
-	alertClient     v1beta1.AlertInterface
+	clientset kubernetes.Interface
+	mclient   mclient.Interface
 }
 
 type Error struct {
@@ -53,12 +50,14 @@ type Alert struct {
 	StatefulSetRule v1beta1.RuleSpec            `json:"statefulSetRule"`
 	DaemonSetRule   v1beta1.RuleSpec            `json:"daemonSetRule"`
 	AdvancedOptions v1beta1.AdvancedOptionsSpec `json:"advancedOptions"`
-
-	RecipientID string `json:"recipientId"`
+	Namespace       string                      `json:"namespace"`
+	RecipientID     string                      `json:"recipientId"`
 }
 
 type Recipient struct {
 	client.Resource
+	Namespace          string                         `json:"namespace"`
+	RecipientType      string                         `json:"recipientType"`
 	SlackRecipient     v1beta1.SlackRecipientSpec     `json:"slackRecipient"`
 	EmailRecipient     v1beta1.EmailRecipientSpec     `json:"emailRecipient"`
 	PagerDutyRecipient v1beta1.PagerDutyRecipientSpec `json:"pagerdutyRecipient"`
@@ -72,18 +71,14 @@ func NewServer(config *rest.Config) *Server {
 		panic(err.Error())
 	}
 
-	mclient, err := v1beta1.NewForConfig(config)
-	//TODO: should not hardcode name space here
-	notifierClient := mclient.Notifiers(k8sapi.NamespaceAll)
-	recipientClient := mclient.Recipients(k8sapi.NamespaceDefault)
-	alertClient := mclient.Alerts(k8sapi.NamespaceDefault)
+	mclient, err := mclient.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
 
 	return &Server{
-		clientset:       clientset,
-		mclient:         mclient,
-		notifierClient:  notifierClient,
-		recipientClient: recipientClient,
-		alertClient:     alertClient,
+		clientset: clientset,
+		mclient:   mclient,
 	}
 }
 
@@ -153,11 +148,30 @@ func alertSchema(alert *client.Schema) {
 	recipientId.Type = "reference[recipient]"
 	alert.ResourceFields["recipientId"] = recipientId
 
+	namespace := alert.ResourceFields["namespace"]
+	namespace.Create = true
+	namespace.Required = true
+	namespace.Update = false
+	alert.ResourceFields["namespace"] = namespace
+
 }
 
 func recipientSchema(recipient *client.Schema) {
 	recipient.CollectionMethods = []string{http.MethodGet, http.MethodPost}
 	recipient.ResourceMethods = []string{http.MethodGet, http.MethodDelete, http.MethodPut}
+
+	namespace := recipient.ResourceFields["namespace"]
+	namespace.Create = true
+	namespace.Required = true
+	namespace.Update = false
+	recipient.ResourceFields["namespace"] = namespace
+
+	recipientType := recipient.ResourceFields["recipientType"]
+	recipientType.Create = true
+	recipientType.Update = false
+	recipientType.Type = "enum"
+	recipientType.Options = []string{"email", "slack", "pagerduty"}
+	recipient.ResourceFields["recipientType"] = recipientType
 }
 
 func notifierSchema(notifier *client.Schema) {
@@ -216,6 +230,8 @@ func toRecipientResource(apiContext *api.ApiContext, n *v1beta1.Recipient) *Reci
 		Links:   map[string]string{},
 	}
 
+	rn.Namespace = n.Namespace
+	rn.RecipientType = n.RecipientType
 	rn.EmailRecipient = *n.EmailRecipient
 	rn.SlackRecipient = *n.SlackRecipient
 	rn.PagerDutyRecipient = *n.PagerDutyRecipient
@@ -230,6 +246,7 @@ func toRecipientCRD(rn *Recipient) *v1beta1.Recipient {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: rn.Id,
 		},
+		RecipientType:      rn.RecipientType,
 		EmailRecipient:     &rn.EmailRecipient,
 		SlackRecipient:     &rn.SlackRecipient,
 		PagerDutyRecipient: &rn.PagerDutyRecipient,
@@ -240,8 +257,9 @@ func toRecipientCRD(rn *Recipient) *v1beta1.Recipient {
 
 func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 	ra := &Alert{
+		Namespace:       a.Namespace,
 		Description:     a.Description,
-		State:           "inactive",
+		State:           a.State,
 		Severity:        a.Severity,
 		TargetType:      a.TargetType,
 		TargetID:        a.TargetID,
@@ -283,6 +301,7 @@ func toAlertCRD(ra *Alert) *v1beta1.Alert {
 		StatefulSetRule: &ra.StatefulSetRule,
 		DaemonSetRule:   &ra.DaemonSetRule,
 		AdvancedOptions: &ra.AdvancedOptions,
+		State:           ra.State,
 	}
 
 	return alert

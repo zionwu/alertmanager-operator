@@ -173,14 +173,16 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				*ec.RequireTLS = c.Global.SMTPRequireTLS
 			}
 		}
-		for _, sc := range rcv.SlackConfigs {
-			if sc.APIURL == "" {
-				if c.Global.SlackAPIURL == "" {
-					return fmt.Errorf("no global Slack API URL set")
+		/*
+			for _, sc := range rcv.SlackConfigs {
+				if sc.APIURL == "" {
+					if c.Global.SlackAPIURL == "" {
+						return fmt.Errorf("no global Slack API URL set")
+					}
+					sc.APIURL = c.Global.SlackAPIURL
 				}
-				sc.APIURL = c.Global.SlackAPIURL
 			}
-		}
+		*/
 		for _, hc := range rcv.HipchatConfigs {
 			if hc.APIURL == "" {
 				if c.Global.HipchatURL == "" {

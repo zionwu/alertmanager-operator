@@ -21,7 +21,7 @@ const (
 )
 
 type NotifiersGetter interface {
-	Notifiers(namespace string) NotifierInterface
+	Notifiers() NotifierInterface
 }
 
 //only used to check if the notifiers struct implements NotifierInterface
@@ -44,7 +44,7 @@ type notifiers struct {
 	ns         string
 }
 
-func newNotifiers(r rest.Interface, c *dynamic.Client, namespace string) *notifiers {
+func newNotifiers(r rest.Interface, c *dynamic.Client) *notifiers {
 	return &notifiers{
 		r,
 		c.Resource(
@@ -53,9 +53,9 @@ func newNotifiers(r rest.Interface, c *dynamic.Client, namespace string) *notifi
 				Name:       NotifierName,
 				Namespaced: false,
 			},
-			namespace,
+			metav1.NamespaceNone,
 		),
-		namespace,
+		metav1.NamespaceNone,
 	}
 }
 

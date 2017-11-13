@@ -21,8 +21,14 @@ func (s *Server) recipientsList(rw http.ResponseWriter, req *http.Request) (err 
 		err = errors.Wrap(err, "unable to list recipient")
 	}()
 
+	namespace := metav1.NamespaceAll
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+
 	opt := metav1.ListOptions{}
-	l, err := s.recipientClient.List(opt)
+	l, err := s.mclient.MonitoringV1().Recipients(namespace).List(opt)
 	if err != nil {
 		logrus.Errorf("Error while listing recipient CRD: %v", err)
 	}
@@ -73,7 +79,7 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 
 	recipient.Id = util.GenerateUUID()
 	n := toRecipientCRD(&recipient)
-	recipientCRD, err := s.recipientClient.Create(n)
+	recipientCRD, err := s.mclient.MonitoringV1().Recipients(recipient.Namespace).Create(n)
 
 	if err != nil {
 		logrus.Errorf("Error while creating recipient CRD: %v", err)
@@ -88,10 +94,19 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 func (s *Server) getRecipient(rw http.ResponseWriter, req *http.Request) (err error) {
 
 	apiContext := api.GetApiContext(req)
-
 	id := mux.Vars(req)["id"]
+
+	var namespace string
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+	if namespace == "" {
+		return fmt.Errorf("Namespace should not be empty")
+	}
+
 	opt := metav1.GetOptions{}
-	n, err := s.recipientClient.Get(id, opt)
+	n, err := s.mclient.MonitoringV1().Recipients(namespace).Get(id, opt)
 	if err != nil {
 		logrus.Error("Error while adding receiver: %v", err)
 		return err
@@ -107,9 +122,18 @@ func (s *Server) deleteRecipient(rw http.ResponseWriter, req *http.Request) (err
 	//apiContext := api.GetApiContext(req)
 	id := mux.Vars(req)["id"]
 
+	var namespace string
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+	if namespace == "" {
+		return fmt.Errorf("Namespace should not be empty")
+	}
+
 	//can not use filed selector for CRD, https://github.com/kubernetes/kubernetes/issues/51046
 	// need to filter it ourselves
-	l, err := s.alertClient.List(metav1.ListOptions{})
+	l, err := s.mclient.MonitoringV1().Alerts(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -123,7 +147,7 @@ func (s *Server) deleteRecipient(rw http.ResponseWriter, req *http.Request) (err
 	}
 
 	opt := metav1.DeleteOptions{}
-	err = s.recipientClient.Delete(id, &opt)
+	err = s.mclient.MonitoringV1().Recipients(namespace).Delete(id, &opt)
 	if err != nil {
 		logrus.Error("Error while deleting recipient CRD: %v", err)
 		return err
@@ -157,7 +181,7 @@ func (s *Server) updateRecipient(rw http.ResponseWriter, req *http.Request) (err
 	recipient.Id = id
 
 	n := toRecipientCRD(&recipient)
-	_, err = s.recipientClient.Update(n)
+	_, err = s.mclient.MonitoringV1().Recipients(recipient.Namespace).Update(n)
 
 	if err != nil {
 		logrus.Error("Error while updating recipient CRD: %v", err)
@@ -171,6 +195,25 @@ func (s *Server) updateRecipient(rw http.ResponseWriter, req *http.Request) (err
 
 func (s *Server) checkRecipientParam(recipient *Recipient) error {
 
-	//TODO: check only one of the recipient is not empty
+	recipientType := recipient.RecipientType
+	if !(recipientType == "email" || recipientType == "slack" || recipientType == "pagerduty") {
+		return fmt.Errorf("recipientTpye should be email/slack/pagerduty")
+	}
+
+	switch recipientType {
+	case "email":
+		if recipient.EmailRecipient.Address == "" {
+			return fmt.Errorf("email address can't be empty")
+		}
+	case "slack":
+		if recipient.SlackRecipient.Channel == "" {
+			return fmt.Errorf("slack channel can't be empty")
+		}
+	case "pagerduty":
+		if recipient.PagerDutyRecipient.ServiceKey == "" {
+			return fmt.Errorf("pagerduty servicekey can't be empty")
+		}
+	}
+
 	return nil
 }

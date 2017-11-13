@@ -48,6 +48,7 @@ type Recipient struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	RecipientType      string                  `json:"recipientType,omitempty"`
 	EmailRecipient     *EmailRecipientSpec     `json:"emailRecipient,omitempty"`
 	SlackRecipient     *SlackRecipientSpec     `json:"slackRecipient,omitempty"`
 	PagerDutyRecipient *PagerDutyRecipientSpec `json:"pagerdutyRecipient,omitempty"`
@@ -83,17 +84,17 @@ type Alert struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Description     string        `json:"description,omitempty"`
-	Severity        string        `json:"severity, omitempty"`
-	TargetType      string        `json:"targetType, omitempty"`
-	TargetID        string        `json:"targetId, omitempty"`
-	RecipientID     string        `json:"recipientId, omitempty"`
-	NodeRule        *NodeRuleSpec `json:"nodeRule, omitempty"`
-	DeploymentRule  *RuleSpec     `json:"deploymentRule, omitempty"`
-	StatefulSetRule *RuleSpec     `json:"statefulSetRule, omitempty"`
-	DaemonSetRule   *RuleSpec     `json:"daemonSetRule, omitempty"`
-
+	Description     string               `json:"description,omitempty"`
+	Severity        string               `json:"severity, omitempty"`
+	TargetType      string               `json:"targetType, omitempty"`
+	TargetID        string               `json:"targetId, omitempty"`
+	RecipientID     string               `json:"recipientId, omitempty"`
+	NodeRule        *NodeRuleSpec        `json:"nodeRule, omitempty"`
+	DeploymentRule  *RuleSpec            `json:"deploymentRule, omitempty"`
+	StatefulSetRule *RuleSpec            `json:"statefulSetRule, omitempty"`
+	DaemonSetRule   *RuleSpec            `json:"daemonSetRule, omitempty"`
 	AdvancedOptions *AdvancedOptionsSpec `json:"advancedOptions, omitempty"`
+	State           string               `json:"state,omitempty"`
 
 	//TODO: check what should do with status
 	Status *AlertStatus `json:"status,omitempty"`

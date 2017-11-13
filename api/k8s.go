@@ -148,7 +148,13 @@ func (s *Server) podList(rw http.ResponseWriter, req *http.Request) (err error) 
 		err = errors.Wrap(err, "unable to list pod")
 	}()
 
-	podList, err := s.clientset.CoreV1().Pods("default").List(metav1.ListOptions{})
+	namespace := metav1.NamespaceAll
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+
+	podList, err := s.clientset.CoreV1().Pods(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		logrus.Errorf("Error while listing k8s pods: %v", err)
 		return err
@@ -210,7 +216,13 @@ func (s *Server) deploymentList(rw http.ResponseWriter, req *http.Request) (err 
 		err = errors.Wrap(err, "unable to list deployment")
 	}()
 
-	deploymentList, err := s.clientset.Apps().Deployments("default").List(metav1.ListOptions{})
+	namespace := metav1.NamespaceAll
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+
+	deploymentList, err := s.clientset.Apps().Deployments(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		logrus.Errorf("Error while listing k8s deployment: %v", err)
 		return err
@@ -272,7 +284,13 @@ func (s *Server) daemonsetList(rw http.ResponseWriter, req *http.Request) (err e
 		err = errors.Wrap(err, "unable to list ds")
 	}()
 
-	dsList, err := s.clientset.Extensions().DaemonSets("default").List(metav1.ListOptions{})
+	namespace := metav1.NamespaceAll
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+
+	dsList, err := s.clientset.Extensions().DaemonSets(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		logrus.Errorf("Error while listing k8s ds: %v", err)
 		return err
@@ -303,7 +321,13 @@ func (s *Server) statefulsetList(rw http.ResponseWriter, req *http.Request) (err
 		err = errors.Wrap(err, "unable to list ss")
 	}()
 
-	ssList, err := s.clientset.Apps().StatefulSets("default").List(metav1.ListOptions{})
+	namespace := metav1.NamespaceAll
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+
+	ssList, err := s.clientset.Apps().StatefulSets(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		logrus.Errorf("Error while listing k8s ss: %v", err)
 		return err
