@@ -1,19 +1,16 @@
 package alertmanager
 
 import (
-	"encoding/json"
-	"io/ioutil"
-	"net/http"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Sirupsen/logrus"
 
-	"github.com/prometheus/alertmanager/dispatch"
 	alertapi "github.com/zionwu/alertmanager-operator/api"
 	"github.com/zionwu/alertmanager-operator/client"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
+	"github.com/zionwu/alertmanager-operator/util"
 )
 
 type Synchronizer interface {
@@ -34,12 +31,12 @@ func NewSynchronizer(cfg *alertapi.Config, mclient client.Interface) Synchronize
 
 func (s *synchronizer) Run(stopc <-chan struct{}) {
 
-	tickChan := time.NewTicker(time.Second * 10).C
+	tickChan := time.NewTicker(time.Second * 30).C
 
 	for {
 		select {
 		case <-tickChan:
-			apiAlerts, err := s.getActiveAlertListFromAlertManager()
+			apiAlerts, err := util.GetActiveAlertListFromAlertManager(s.cfg.ManagerUrl)
 			if err != nil {
 				logrus.Errorf("Error while getting alert list from alertmanager: %v", err)
 			} else {
@@ -49,8 +46,20 @@ func (s *synchronizer) Run(stopc <-chan struct{}) {
 				} else {
 					alertList := al.(*v1beta1.AlertList)
 					for _, alert := range alertList.Items {
-						state := getState(alert, apiAlerts)
+						if alert.State == v1beta1.AlertStateInactive {
+							continue
+						}
+
+						state := util.GetState(alert, apiAlerts)
+
+						//only take ation when the state is not the same
 						if state != alert.State {
+
+							//if the origin state is silenced, and current state is active, then need to remove the silence rule
+							if alert.State == v1beta1.AlertStateSilenced && state == v1beta1.AlertStateActive {
+								util.RemoveSilence(s.cfg.ManagerUrl, alert)
+							}
+
 							alert.State = state
 							s.mclient.MonitoringV1().Alerts(alert.Namespace).Update(alert)
 						}
@@ -63,49 +72,4 @@ func (s *synchronizer) Run(stopc <-chan struct{}) {
 		}
 	}
 
-}
-
-func getState(alert *v1beta1.Alert, apiAlerts []*dispatch.APIAlert) string {
-
-	for _, a := range apiAlerts {
-		if string(a.Labels["alert_id"]) == alert.Name && string(a.Labels["namespace"]) == alert.Namespace {
-			return "active"
-		}
-	}
-
-	return "inactive"
-
-}
-
-func (s *synchronizer) getActiveAlertListFromAlertManager() ([]*dispatch.APIAlert, error) {
-
-	res := struct {
-		Data   []*dispatch.APIAlert `json:"data"`
-		Status string               `json:"status"`
-	}{}
-
-	req, err := http.NewRequest(http.MethodGet, s.cfg.ManagerUrl+"/api/v1/alerts", nil)
-	if err != nil {
-		return nil, err
-	}
-	//q := req.URL.Query()
-	//q.Add("filter", fmt.Sprintf("{%s}", filter))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	requestBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := json.Unmarshal(requestBytes, &res); err != nil {
-		return nil, err
-	}
-
-	return res.Data, nil
 }

@@ -101,8 +101,7 @@ type Alert struct {
 }
 
 type AdvancedOptionsSpec struct {
-	GroupWait      string `json:"groupWait, omitempty"`
-	GroupInterval  string `json:"groupInterval, omitempty"`
+	InitialWait    string `json:"initialWait, omitempty"`
 	RepeatInterval string `json:"repeatInterval, omitempty"`
 }
 

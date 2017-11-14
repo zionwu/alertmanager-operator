@@ -82,11 +82,14 @@ func NewRouter(s *Server) *mux.Router {
 	r.Methods(http.MethodGet).Path("/v5/daemonsets").Handler(f(schemas, s.daemonsetList))
 	r.Methods(http.MethodGet).Path("/v5/namespaces").Handler(f(schemas, s.namespaceList))
 
-	notifierActions := map[string]http.Handler{
-		"validate": f(schemas, s.validateNotifier),
+	alertActions := map[string]http.Handler{
+		"activate":   f(schemas, s.activateAlert),
+		"deactivate": f(schemas, s.deactivateAlert),
+		"silence":    f(schemas, s.silenceAlert),
+		"unsilence":  f(schemas, s.unsilenceAlert),
 	}
-	for name, actions := range notifierActions {
-		r.Methods(http.MethodPost).Path("/v5/notifiers/{id}").Queries("action", name).Handler(actions)
+	for name, actions := range alertActions {
+		r.Methods(http.MethodPost).Path("/v5/alerts/{id}").Queries("action", name).Handler(actions)
 	}
 
 	return r

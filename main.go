@@ -96,7 +96,7 @@ func RunOperator(c *cli.Context) error {
 		}
 	}
 
-	router := http.Handler(api.NewRouter(api.NewServer(config)))
+	router := http.Handler(api.NewRouter(api.NewServer(config,&cfg)))
 	router = handlers.LoggingHandler(os.Stdout, router)
 	router = handlers.ProxyHeaders(router)
 	logrus.Infof("Alertmanager operator running on %s", listenPort)

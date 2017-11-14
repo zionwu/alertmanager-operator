@@ -18,6 +18,11 @@ const (
 	AlertsKind       = "Alert"
 	AlertName        = "alerts"
 	AlertSinguleName = "alert"
+
+	AlertStateActive   = "active"
+	AlertStateInactive = "inactive"
+	AlertStateAlerting = "alerting"
+	AlertStateSilenced = "silenced"
 )
 
 type AlertsGetter interface {

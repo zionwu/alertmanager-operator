@@ -5,7 +5,7 @@ metadata:
 
 description: asd
 severity: critical
-targetType: pod/node/deployment/statefulSet/daemonSet
+targetType: pod/node/deployment/statefulset/daemonset
 targetId: 1s1
 nodeRule: 
   condition: NotReady/DiskPressure/MemoryPressure/OutOfDisk
@@ -15,15 +15,12 @@ daemonSetRule:
   unavailablePercentage: 60
 statefulSetRule:
   unavailablePercentage: 60
-
 advancedOptions:
   groupWait:  "30s"
   groupInterval: "5m"
   repeatInterval: "4h"
-
 recipientId: testabc
-state: inactive/active
-  
+state: inactive/active/alerting/silenced/unsilenced
 
 
 

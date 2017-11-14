@@ -20,6 +20,7 @@ type Config struct {
 type Server struct {
 	clientset kubernetes.Interface
 	mclient   mclient.Interface
+	cfg       *Config
 }
 
 type Error struct {
@@ -63,7 +64,7 @@ type Recipient struct {
 	PagerDutyRecipient v1beta1.PagerDutyRecipientSpec `json:"pagerdutyRecipient"`
 }
 
-func NewServer(config *rest.Config) *Server {
+func NewServer(config *rest.Config, cfg *Config) *Server {
 
 	// create the clientset
 	clientset, err := kubernetes.NewForConfig(config)
@@ -79,6 +80,7 @@ func NewServer(config *rest.Config) *Server {
 	return &Server{
 		clientset: clientset,
 		mclient:   mclient,
+		cfg:       cfg,
 	}
 }
 
@@ -154,6 +156,21 @@ func alertSchema(alert *client.Schema) {
 	namespace.Update = false
 	alert.ResourceFields["namespace"] = namespace
 
+	alert.ResourceActions = map[string]client.Action{
+		"silence": {
+			Output: "alert",
+		},
+		"unsilence": {
+			Output: "alert",
+		},
+		"activate": {
+			Output: "alert",
+		},
+		"deactivate": {
+			Output: "alert",
+		},
+	}
+
 }
 
 func recipientSchema(recipient *client.Schema) {
@@ -201,7 +218,6 @@ func toNotifierResource(apiContext *api.ApiContext, n *v1beta1.Notifier) *Notifi
 	rn.PagerDutyConfig = *n.PagerDutyConfig
 
 	rn.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("notifier", rn.Id)
-	rn.Actions["validate"] = apiContext.UrlBuilder.ReferenceLink(rn.Resource) + "?action=validate"
 
 	return rn
 }
@@ -282,6 +298,8 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 	ra.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("alert", ra.Id)
 	ra.Resource.Links["remove"] = apiContext.UrlBuilder.ReferenceByIdLink("alert", ra.Id)
 	ra.Resource.Links["recipient"] = apiContext.UrlBuilder.ReferenceByIdLink("recipient", ra.RecipientID)
+	ra.Actions["activate"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=activate"
+	ra.Actions["deactivate"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=deactivate"
 
 	return ra
 }

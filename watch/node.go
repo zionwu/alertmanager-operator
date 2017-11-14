@@ -7,6 +7,8 @@ import (
 
 	"github.com/zionwu/alertmanager-operator/api"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
+	"github.com/zionwu/alertmanager-operator/util"
+
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api"
@@ -66,6 +68,11 @@ func (w *nodeWatcher) handleDelete(obj interface{}) {
 }
 
 func (w *nodeWatcher) handleUpdate(oldObj, curObj interface{}) {
+
+	//will not check status if the state is inactive
+	if w.alert.State == v1beta1.AlertStateInactive {
+		return
+	}
 	/*
 		oldNode, err := convertToNode(oldObj)
 		if err != nil {
@@ -89,12 +96,12 @@ func (w *nodeWatcher) handleUpdate(oldObj, curObj interface{}) {
 
 	for _, condition := range curNode.Status.Conditions {
 		if w.alert.NodeRule.Condition == string(condition.Type) && string(condition.Status) == "True" {
-			sendAlert(w.cfg.ManagerUrl, w.alert)
+			util.SendAlert(w.cfg.ManagerUrl, w.alert)
 			break
 		}
 
 		if w.alert.NodeRule.Condition == "NotReady" && string(condition.Type) == "Ready" && string(condition.Status) == "False" {
-			sendAlert(w.cfg.ManagerUrl, w.alert)
+			util.SendAlert(w.cfg.ManagerUrl, w.alert)
 			break
 		}
 

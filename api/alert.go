@@ -65,7 +65,7 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 		logrus.Errorf("Error while reading request body: %v", err)
 		return err
 	}
-	alert := Alert{State: "inactive"}
+	alert := Alert{State: "active"}
 
 	if err := json.Unmarshal(requestBytes, &alert); err != nil {
 		logrus.Errorf("Error while unmarshal the request: %v", err)
@@ -127,6 +127,7 @@ func (s *Server) getAlert(rw http.ResponseWriter, req *http.Request) (err error)
 
 func (s *Server) deleteAlert(rw http.ResponseWriter, req *http.Request) (err error) {
 
+	apiContext := api.GetApiContext(req)
 	id := mux.Vars(req)["id"]
 
 	var namespace string
@@ -138,10 +139,14 @@ func (s *Server) deleteAlert(rw http.ResponseWriter, req *http.Request) (err err
 		return fmt.Errorf("Namespace should not be empty")
 	}
 
-	_, err = s.mclient.MonitoringV1().Alerts(namespace).Get(id, metav1.GetOptions{})
+	alert, err := s.mclient.MonitoringV1().Alerts(namespace).Get(id, metav1.GetOptions{})
 	if err != nil {
 		logrus.Errorf("Error while getting k8s alert CRD: %v", err)
 		return err
+	}
+
+	if alert.State != v1beta1.AlertStateInactive {
+		return fmt.Errorf("Current state is not inactive, can not perform delete")
 	}
 
 	err = s.mclient.MonitoringV1().Alerts(namespace).Delete(id, &metav1.DeleteOptions{})
@@ -149,7 +154,7 @@ func (s *Server) deleteAlert(rw http.ResponseWriter, req *http.Request) (err err
 		logrus.Errorf("Error while deleting k8s alert CRD", err)
 		return err
 	}
-
+	apiContext.Write(&alert)
 	return nil
 
 }
@@ -165,7 +170,7 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 
-	alert := Alert{State: "inactive"}
+	alert := Alert{State: "active"}
 
 	if err := json.Unmarshal(requestBytes, &alert); err != nil {
 		logrus.Errorf("Error while unmarshal the request: %v", err)
@@ -194,6 +199,169 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 	}
 
 	apiContext.Write(&alert)
+	return nil
+
+}
+
+func (s *Server) deactivateAlert(rw http.ResponseWriter, req *http.Request) (err error) {
+	apiContext := api.GetApiContext(req)
+	id := mux.Vars(req)["id"]
+
+	var namespace string
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+
+	if namespace == "" {
+		return fmt.Errorf("Namespace should not be empty")
+	}
+
+	alert, err := s.mclient.MonitoringV1().Alerts(namespace).Get(id, metav1.GetOptions{})
+	if err != nil {
+		logrus.Errorf("Error while getting k8s alert CRD: %v", err)
+		return err
+	}
+
+	if alert.State != v1beta1.AlertStateActive {
+		return fmt.Errorf("Current state is not active, can not perform deactiavte action")
+	}
+
+	alert.State = v1beta1.AlertStateInactive
+
+	_, err = s.mclient.MonitoringV1().Alerts(namespace).Update(alert)
+	if err != nil {
+		logrus.Errorf("Error while deactivating k8s alert CRD", err)
+		return err
+	}
+
+	ra := toAlertResource(apiContext, alert)
+	apiContext.Write(ra)
+
+	return nil
+
+}
+
+func (s *Server) activateAlert(rw http.ResponseWriter, req *http.Request) (err error) {
+	apiContext := api.GetApiContext(req)
+	id := mux.Vars(req)["id"]
+
+	var namespace string
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+
+	if namespace == "" {
+		return fmt.Errorf("Namespace should not be empty")
+	}
+
+	alert, err := s.mclient.MonitoringV1().Alerts(namespace).Get(id, metav1.GetOptions{})
+	if err != nil {
+		logrus.Errorf("Error while getting k8s alert CRD: %v", err)
+		return err
+	}
+
+	if alert.State != v1beta1.AlertStateInactive {
+		return fmt.Errorf("Current state is not inactive, can not perform actiavte action")
+	}
+
+	alert.State = v1beta1.AlertStateActive
+
+	_, err = s.mclient.MonitoringV1().Alerts(namespace).Update(alert)
+	if err != nil {
+		logrus.Errorf("Error while setting k8s alert to active", err)
+		return err
+	}
+
+	ra := toAlertResource(apiContext, alert)
+	apiContext.Write(ra)
+
+	return nil
+
+}
+
+func (s *Server) silenceAlert(rw http.ResponseWriter, req *http.Request) (err error) {
+	apiContext := api.GetApiContext(req)
+	id := mux.Vars(req)["id"]
+
+	var namespace string
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+
+	if namespace == "" {
+		return fmt.Errorf("Namespace should not be empty")
+	}
+
+	alert, err := s.mclient.MonitoringV1().Alerts(namespace).Get(id, metav1.GetOptions{})
+	if err != nil {
+		logrus.Errorf("Error while getting k8s alert CRD: %v", err)
+		return err
+	}
+
+	if alert.State != v1beta1.AlertStateAlerting {
+		return fmt.Errorf("Current state is not alerting, can not perform slience action")
+	}
+
+	err = util.AddSilence(s.cfg.ManagerUrl, alert)
+	if err != nil {
+		return fmt.Errorf("Error while adding silence to AlertManager: %v", err)
+	}
+
+	alert.State = v1beta1.AlertStateSilenced
+	_, err = s.mclient.MonitoringV1().Alerts(namespace).Update(alert)
+	if err != nil {
+		logrus.Errorf("Error while setting k8s alert to silenced", err)
+		return err
+	}
+
+	ra := toAlertResource(apiContext, alert)
+	apiContext.Write(ra)
+
+	return nil
+}
+
+func (s *Server) unsilenceAlert(rw http.ResponseWriter, req *http.Request) (err error) {
+	apiContext := api.GetApiContext(req)
+	id := mux.Vars(req)["id"]
+
+	var namespace string
+	vals := req.URL.Query()
+	if nsarr, ok := vals["namespace"]; ok {
+		namespace = nsarr[0]
+	}
+
+	if namespace == "" {
+		return fmt.Errorf("Namespace should not be empty")
+	}
+
+	alert, err := s.mclient.MonitoringV1().Alerts(namespace).Get(id, metav1.GetOptions{})
+	if err != nil {
+		logrus.Errorf("Error while getting k8s alert CRD: %v", err)
+		return err
+	}
+
+	if alert.State != v1beta1.AlertStateSilenced {
+		return fmt.Errorf("Current state is not silenced, can not perform unslience action")
+	}
+
+	err = util.RemoveSilence(s.cfg.ManagerUrl, alert)
+	if err != nil {
+		return fmt.Errorf("Error while removing silence to AlertManager: %v", err)
+	}
+
+	alert.State = v1beta1.AlertStateAlerting
+	_, err = s.mclient.MonitoringV1().Alerts(namespace).Update(alert)
+	if err != nil {
+		logrus.Errorf("Error while setting k8s alert to alerting", err)
+		return err
+	}
+
+	ra := toAlertResource(apiContext, alert)
+	apiContext.Write(ra)
+
 	return nil
 
 }

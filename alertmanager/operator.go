@@ -1,9 +1,9 @@
 package alertmanager
 
 import (
-	"io/ioutil"
-	"net/http"
-	"time"
+	"fmt"
+
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/pkg/errors"
@@ -12,21 +12,21 @@ import (
 	alertconfig "github.com/zionwu/alertmanager-operator/alertmanager/config"
 	alertapi "github.com/zionwu/alertmanager-operator/api"
 
-	"github.com/zionwu/alertmanager-operator/util"
-
 	"github.com/zionwu/alertmanager-operator/client"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
+	"github.com/zionwu/alertmanager-operator/util"
 	"github.com/zionwu/alertmanager-operator/watch"
-	yaml "gopkg.in/yaml.v2"
 	extensionsobj "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 )
 
 const (
@@ -48,8 +48,8 @@ type Operator struct {
 	recipentInf  cache.SharedIndexInformer
 
 	synchronizer Synchronizer
-	//queue        workqueue.RateLimitingInterface
-	watchers map[string]watch.Watcher
+	queue        workqueue.RateLimitingInterface
+	watchers     map[string]watch.Watcher
 }
 
 func NewOperator(config *rest.Config, cfg *alertapi.Config) (*Operator, error) {
@@ -73,9 +73,9 @@ func NewOperator(config *rest.Config, cfg *alertapi.Config) (*Operator, error) {
 		kclient:   kclient,
 		mclient:   mclient,
 		crdclient: crdclient,
-		//queue:              workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "alertmanager"),
-		cfg:      cfg,
-		watchers: map[string]watch.Watcher{},
+		queue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "alertmanager"),
+		cfg:       cfg,
+		watchers:  map[string]watch.Watcher{},
 	}
 
 	o.alertInf = cache.NewSharedIndexInformer(
@@ -159,7 +159,7 @@ func (c *Operator) Run(stopc <-chan struct{}) error {
 		return nil
 	}
 
-	//go c.worker()
+	go c.worker()
 	go c.alertInf.Run(stopc)
 	go c.recipentInf.Run(stopc)
 	go c.notifiertInf.Run(stopc)
@@ -169,37 +169,208 @@ func (c *Operator) Run(stopc <-chan struct{}) error {
 	return nil
 }
 
-func (c *Operator) handleAlertAdd(obj interface{}) {
-	alert := obj.(*v1beta1.Alert)
-	logrus.Infof("Add for alert: %v", alert)
+func (c *Operator) worker() {
+	for c.processNextWorkItem() {
+	}
+}
 
-	if err := c.makeConfig(alert, c.addRoute2Config); err != nil {
-		logrus.Errorf("Error whiling adding route: %v", err)
+func (c *Operator) processNextWorkItem() bool {
+	key, quit := c.queue.Get()
+	if quit {
+		return false
+	}
+	defer c.queue.Done(key)
+
+	err := c.sync(key)
+	if err == nil {
+		c.queue.Forget(key)
+		return true
 	}
 
+	utilruntime.HandleError(errors.Wrap(err, fmt.Sprintf("Sync %q failed", key)))
+	c.queue.AddRateLimited(key)
+
+	return true
+}
+
+func (c *Operator) sync(key interface{}) error {
+	notifier, err := c.mclient.MonitoringV1().Notifiers().Get("rancher-notifier", metav1.GetOptions{})
+	if err != nil {
+		logrus.Errorf("Error while getting notifier: %v", err)
+		return err
+	}
+
+	al, err := c.mclient.MonitoringV1().Alerts(metav1.NamespaceAll).List(metav1.ListOptions{})
+	if err != nil {
+		logrus.Errorf("Error while listing alert: %v", err)
+		return err
+	}
+	alertList := al.(*v1beta1.AlertList)
+
+	rl, err := c.mclient.MonitoringV1().Recipients(metav1.NamespaceAll).List(metav1.ListOptions{})
+	if err != nil {
+		logrus.Errorf("Error while listing recipient: %v", err)
+		return err
+	}
+	recipientList := rl.(*v1beta1.RecipientList)
+
+	config := getDefaultConfig()
+
+	if notifier.PagerDutyConfig != nil && notifier.PagerDutyConfig.PagerDutyUrl != "" {
+		config.Global.PagerdutyURL = notifier.PagerDutyConfig.PagerDutyUrl
+	}
+
+	if notifier.SlackConfig != nil && notifier.SlackConfig.SlackApiUrl != "" {
+		config.Global.SlackAPIURL = alertconfig.Secret(notifier.SlackConfig.SlackApiUrl)
+
+	}
+
+	if notifier.EmailConfig != nil {
+		config.Global.SMTPAuthIdentity = notifier.EmailConfig.SMTPAuthIdentity
+		config.Global.SMTPAuthPassword = alertconfig.Secret(notifier.EmailConfig.SMTPAuthPassword)
+		config.Global.SMTPAuthSecret = alertconfig.Secret(notifier.EmailConfig.SMTPAuthSecret)
+		config.Global.SMTPAuthUsername = notifier.EmailConfig.SMTPAuthUserName
+		config.Global.SMTPFrom = notifier.EmailConfig.SMTPFrom
+		config.Global.SMTPSmarthost = notifier.EmailConfig.SMTPSmartHost
+		config.Global.SMTPRequireTLS = notifier.EmailConfig.SMTPRequireTLS
+	}
+
+	for _, recipient := range recipientList.Items {
+		c.addReceiver2Config(config, recipient)
+	}
+
+	for _, alert := range alertList.Items {
+		c.addRoute2Config(config, alert)
+	}
+
+	sClient := c.kclient.CoreV1().Secrets("default")
+
+	configSecret, err := sClient.Get(c.cfg.SecretName, metav1.GetOptions{})
+	if err != nil {
+		logrus.Error("Error while getting secret: %v", err)
+		return err
+	}
+
+	d, err := yaml.Marshal(config)
+	logrus.Debugf("after updating notifier: %s", string(d))
+	if err != nil {
+		return err
+	}
+
+	configSecret.Data[ConfigFileName] = d
+	_, err = sClient.Update(configSecret)
+	if err != nil {
+		logrus.Error("Error while updating secret: %v", err)
+		return err
+	}
+	//reload alertmanager
+	go util.ReloadConfiguration(c.cfg.ManagerUrl)
+
+	return nil
+
+}
+
+func getDefaultConfig() *alertconfig.Config {
+	config := alertconfig.Config{}
+
+	resolveTimeout, _ := model.ParseDuration("5m")
+	config.Global = &alertconfig.GlobalConfig{
+		SlackAPIURL:    "slack_api_url",
+		ResolveTimeout: resolveTimeout,
+	}
+
+	slackConfigs := []*alertconfig.SlackConfig{}
+	initSlackConfig := &alertconfig.SlackConfig{
+		Channel: "#alert",
+	}
+	slackConfigs = append(slackConfigs, initSlackConfig)
+
+	receivers := []*alertconfig.Receiver{}
+	initReceiver := &alertconfig.Receiver{
+		Name:         "rancherlabs",
+		SlackConfigs: slackConfigs,
+	}
+	receivers = append(receivers, initReceiver)
+
+	config.Receivers = receivers
+
+	groupWait, _ := model.ParseDuration("1m")
+	groupInterval, _ := model.ParseDuration("0m")
+	repeatInterval, _ := model.ParseDuration("1h")
+
+	config.Route = &alertconfig.Route{
+		Receiver:       "rancherlabs",
+		GroupWait:      &groupWait,
+		GroupInterval:  &groupInterval,
+		RepeatInterval: &repeatInterval,
+	}
+
+	return &config
+}
+
+func convertToAlert(o interface{}) (*v1beta1.Alert, error) {
+	alert, ok := o.(*v1beta1.Alert)
+	if !ok {
+		deletedState, ok := o.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			return nil, fmt.Errorf("Received unexpected object: %v", o)
+		}
+		alert, ok = deletedState.Obj.(*v1beta1.Alert)
+		if !ok {
+			return nil, fmt.Errorf("DeletedFinalStateUnknown contained non-Pod object: %v", deletedState.Obj)
+		}
+	}
+
+	return alert, nil
+}
+
+func (c *Operator) handleAlertAdd(obj interface{}) {
+	alert, err := convertToAlert(obj)
+	if err != nil {
+		logrus.Error("converting to Alert object failed")
+		return
+	}
+
+	logrus.Debugf("Add for alert: %v", alert)
+
+	//TODO: should we move watcher into sync?
 	watcher := watch.NewWatcher(alert, c.kclient, c.cfg)
 	c.watchers[alert.Name] = watcher
 	go watcher.Watch()
 
+	c.queue.Add(alert)
 }
 
 func (c *Operator) handleAlertDelete(obj interface{}) {
-	alert := obj.(*v1beta1.Alert)
-	logrus.Infof("Delete for alert: %v", alert)
-
-	if err := c.makeConfig(alert, c.deleteRoute2Config); err != nil {
-		logrus.Errorf("Error whiling deleting route: %v", err)
+	alert, err := convertToAlert(obj)
+	if err != nil {
+		logrus.Error("converting to Alert object failed")
+		return
 	}
+
+	logrus.Debugf("Delete for alert: %v", alert)
 
 	c.watchers[alert.Name].Stop()
 	delete(c.watchers, alert.Name)
 
+	c.queue.Add(alert)
+
 }
 
 func (c *Operator) handleAlertUpdate(oldObj, curObj interface{}) {
-	alert := curObj.(*v1beta1.Alert)
-	oldAlert := oldObj.(*v1beta1.Alert)
+	alert, err := convertToAlert(curObj)
+	if err != nil {
+		logrus.Error("converting to Alert object failed")
+		return
+	}
 
+	oldAlert, err := convertToAlert(oldObj)
+	if err != nil {
+		logrus.Error("converting to Alert object failed")
+		return
+	}
+
+	//TODO: do we need this block
 	if alert.GetResourceVersion() == oldAlert.GetResourceVersion() {
 		logrus.Infof("Same version: %v", alert.GetResourceVersion())
 		return
@@ -209,53 +380,93 @@ func (c *Operator) handleAlertUpdate(oldObj, curObj interface{}) {
 
 	logrus.Infof("Update for alert: %v", alert)
 
-	if err := c.makeConfig(alert, c.updateRoute2Config); err != nil {
-		logrus.Errorf("Error whiling updating route: %v", err)
+	c.queue.Add(alert)
+}
+
+func convertRecipient(o interface{}) (*v1beta1.Recipient, error) {
+	r, ok := o.(*v1beta1.Recipient)
+	if !ok {
+		deletedState, ok := o.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			return nil, fmt.Errorf("Received unexpected object: %v", o)
+		}
+		r, ok = deletedState.Obj.(*v1beta1.Recipient)
+		if !ok {
+			return nil, fmt.Errorf("DeletedFinalStateUnknown contained non-Pod object: %v", deletedState.Obj)
+		}
 	}
 
+	return r, nil
 }
 
 func (c *Operator) handleRecipientAdd(obj interface{}) {
-	recipient := obj.(*v1beta1.Recipient)
-	logrus.Infof("Add for recipient: %v", recipient)
-
-	if err := c.makeConfig(recipient, c.addReceiver2Config); err != nil {
-		logrus.Errorf("Error whiling adding receiver: %v", err)
+	recipient, err := convertRecipient(obj)
+	if err != nil {
+		logrus.Error("converting to Recipient object failed")
+		return
 	}
+	logrus.Debugf("Add for recipient: %v", recipient)
+
+	c.queue.Add(recipient)
 }
 
 func (c *Operator) handleRecipientDelete(obj interface{}) {
-	recipient := obj.(*v1beta1.Recipient)
-	logrus.Infof("Delete for recipient: %v", recipient)
-
-	if err := c.makeConfig(recipient, c.deleteReceiver2Config); err != nil {
-		logrus.Errorf("Error whiling deleting receiver: %v", err)
+	recipient, err := convertRecipient(obj)
+	if err != nil {
+		logrus.Error("converting to Recipient object failed")
+		return
 	}
+	logrus.Debugf("Delete for recipient: %v", recipient)
+
+	c.queue.Add(recipient)
 }
 
 func (c *Operator) handleRecipientUpdate(oldObj, curObj interface{}) {
-	recipient := curObj.(*v1beta1.Recipient)
-	oldRecipient := oldObj.(*v1beta1.Recipient)
+	recipient, err := convertRecipient(curObj)
+	if err != nil {
+		logrus.Error("converting to Recipient object failed")
+		return
+	}
+	oldRecipient, err := convertRecipient(oldObj)
+	if err != nil {
+		logrus.Error("converting to Recipient object failed")
+		return
+	}
+	logrus.Debugf("Update for recipient: %v", recipient)
 
 	if recipient.GetResourceVersion() == oldRecipient.GetResourceVersion() {
 		logrus.Infof("Same version: %v", recipient.GetResourceVersion())
 		return
 	}
-	logrus.Infof("Update for recipient: %v", recipient)
 
-	if err := c.makeConfig(recipient, c.updateReceiver2Config); err != nil {
-		logrus.Errorf("Error whiling updating receiver: %v", err)
+	c.queue.Add(recipient)
+}
+
+func convertNotifier(o interface{}) (*v1beta1.Notifier, error) {
+	r, ok := o.(*v1beta1.Notifier)
+	if !ok {
+		deletedState, ok := o.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			return nil, fmt.Errorf("Received unexpected object: %v", o)
+		}
+		r, ok = deletedState.Obj.(*v1beta1.Notifier)
+		if !ok {
+			return nil, fmt.Errorf("DeletedFinalStateUnknown contained non-Pod object: %v", deletedState.Obj)
+		}
 	}
+
+	return r, nil
 }
 
 func (c *Operator) handleNotifierAdd(obj interface{}) {
-
-	notifier := obj.(*v1beta1.Notifier)
-	logrus.Infof("Add for notifier: %v", notifier)
-
-	if err := c.makeConfig(notifier, c.updateNotifier2Config); err != nil {
-		logrus.Errorf("Error whiling adding notifier: %v", err)
+	notifier, err := convertNotifier(obj)
+	if err != nil {
+		logrus.Error("converting to Notifier object failed")
+		return
 	}
+
+	logrus.Debugf("Add for notifier: %v", notifier)
+	c.queue.Add(notifier)
 }
 
 func (c *Operator) handleNotifierDelete(obj interface{}) {
@@ -268,62 +479,28 @@ func (c *Operator) handleNotifierDelete(obj interface{}) {
 }
 
 func (c *Operator) handleNotifierUpdate(oldObj, curObj interface{}) {
-	notifier := curObj.(*v1beta1.Notifier)
-	oldNotifier := oldObj.(*v1beta1.Notifier)
+	notifier, err := convertNotifier(curObj)
+	if err != nil {
+		logrus.Error("converting to Notifier object failed")
+		return
+	}
+
+	oldNotifier, err := convertNotifier(oldObj)
+	if err != nil {
+		logrus.Error("converting to Notifier object failed")
+		return
+	}
 
 	if notifier.GetResourceVersion() == oldNotifier.GetResourceVersion() {
 		logrus.Infof("Same version: %v", notifier.GetResourceVersion())
 		return
 	}
 
-	logrus.Infof("Update for notifier: %v", notifier)
-
-	if err := c.makeConfig(notifier, c.updateNotifier2Config); err != nil {
-		logrus.Errorf("Error whiling updating notifier: %v", err)
-	}
-
+	logrus.Debugf("Update for notifier: %v", notifier)
+	c.queue.Add(notifier)
 }
 
-func (c *Operator) makeConfig(obj interface{}, f func(string, interface{}) (string, error)) error {
-	//1. get configuration from secret
-	//TODO: should not hardcode the namespace
-	sClient := c.kclient.CoreV1().Secrets("default")
-
-	configSecret, err := sClient.Get(c.cfg.SecretName, metav1.GetOptions{})
-	if err != nil {
-		logrus.Error("Error while getting secret: %v", err)
-		return err
-	}
-
-	configBtyes := configSecret.Data[ConfigFileName]
-
-	newConfigStr, err := f(string(configBtyes), obj)
-	if err != nil {
-		logrus.Error("Error while adding config: %v", err)
-		return err
-	}
-
-	configSecret.Data[ConfigFileName] = []byte(newConfigStr)
-	_, err = sClient.Update(configSecret)
-	if err != nil {
-		logrus.Error("Error while updating secret: %v", err)
-		return err
-	}
-	//reload alertmanager
-	go c.reload()
-
-	return nil
-}
-
-func (c *Operator) addRoute2Config(configStr string, a interface{}) (string, error) {
-	logrus.Infof("before adding route: %s", configStr)
-
-	alert := a.(*v1beta1.Alert)
-
-	config, err := alertconfig.Load(configStr)
-	if err != nil {
-		return "", err
-	}
+func (c *Operator) addRoute2Config(config *alertconfig.Config, alert *v1beta1.Alert) error {
 
 	envRoutes := &config.Route.Routes
 	if envRoutes == nil {
@@ -348,12 +525,6 @@ func (c *Operator) addRoute2Config(configStr string, a interface{}) (string, err
 		*envRoutes = append(*envRoutes, envRoute)
 	}
 
-	for _, route := range envRoute.Routes {
-		if route.Match[AlertIDLabelName] == alert.Name {
-			return configStr, nil
-		}
-	}
-
 	match := map[string]string{}
 	match[AlertIDLabelName] = alert.Name
 	route := &alertconfig.Route{
@@ -361,13 +532,9 @@ func (c *Operator) addRoute2Config(configStr string, a interface{}) (string, err
 		Match:    match,
 	}
 	if alert.AdvancedOptions != nil {
-		gw, err := model.ParseDuration(alert.AdvancedOptions.GroupWait)
+		gw, err := model.ParseDuration(alert.AdvancedOptions.InitialWait)
 		if err == nil {
 			route.GroupWait = &gw
-		}
-		gi, err := model.ParseDuration(alert.AdvancedOptions.GroupInterval)
-		if err == nil {
-			route.GroupInterval = &gi
 		}
 		ri, err := model.ParseDuration(alert.AdvancedOptions.RepeatInterval)
 		if err == nil {
@@ -378,108 +545,11 @@ func (c *Operator) addRoute2Config(configStr string, a interface{}) (string, err
 
 	envRoute.Routes = append(envRoute.Routes, route)
 
-	//update the secret
-	d, err := yaml.Marshal(config)
-	if err != nil {
-		return "", err
-	}
-
-	logrus.Infof("after adding route: %s", string(d))
-
-	return string(d), nil
+	return nil
 }
 
-func (c *Operator) updateRoute2Config(configStr string, a interface{}) (string, error) {
-	logrus.Infof("before updating route: %s", configStr)
+func (c *Operator) addReceiver2Config(config *alertconfig.Config, recipient *v1beta1.Recipient) error {
 
-	alert := a.(*v1beta1.Alert)
-
-	config, err := alertconfig.Load(configStr)
-	if err != nil {
-		return "", err
-	}
-
-	envRoutes := &config.Route.Routes
-
-	var envRoute *alertconfig.Route
-	for _, r := range *envRoutes {
-		if r.Match[NSLabelName] == alert.Namespace {
-			envRoute = r
-			break
-		}
-	}
-
-	for _, route := range envRoute.Routes {
-		if route.Match[AlertIDLabelName] == alert.Name {
-			route.Receiver = alert.RecipientID
-			break
-		}
-	}
-
-	//update the secret
-	d, err := yaml.Marshal(config)
-	if err != nil {
-		return "", err
-	}
-
-	logrus.Infof("after updating route: %s", string(d))
-
-	return string(d), nil
-}
-
-func (c *Operator) deleteRoute2Config(configStr string, a interface{}) (string, error) {
-	logrus.Infof("before deleting route: %s", configStr)
-	alert := a.(*v1beta1.Alert)
-	config, err := alertconfig.Load(configStr)
-	if err != nil {
-		return "", err
-	}
-
-	envRoutes := &config.Route.Routes
-
-	var envRoute *alertconfig.Route
-	for _, r := range *envRoutes {
-		if r.Match[NSLabelName] == alert.Namespace {
-			envRoute = r
-			break
-		}
-	}
-
-	routes := envRoute.Routes
-	for i, route := range routes {
-		if route.Match[AlertIDLabelName] == alert.Name {
-			routes = append(routes[:i], routes[i+1:]...)
-			break
-		}
-	}
-	envRoute.Routes = routes
-
-	//update the secret
-	d, err := yaml.Marshal(config)
-	if err != nil {
-		return "", err
-	}
-
-	logrus.Infof("after deleting route: %s", string(d))
-
-	return string(d), nil
-}
-
-func (c *Operator) addReceiver2Config(configStr string, r interface{}) (string, error) {
-	logrus.Infof("before adding receiver: %s", configStr)
-	recipient := r.(*v1beta1.Recipient)
-	config, err := alertconfig.Load(configStr)
-	if err != nil {
-		return "", err
-	}
-
-	for _, item := range config.Receivers {
-		if item.Name == recipient.Name {
-			return configStr, nil
-		}
-	}
-
-	//2. add the receiver to the configuration
 	receiver := &alertconfig.Receiver{Name: recipient.Name}
 	if recipient.EmailRecipient.Address != "" {
 		email := &alertconfig.EmailConfig{
@@ -503,136 +573,6 @@ func (c *Operator) addReceiver2Config(configStr string, r interface{}) (string, 
 	}
 
 	config.Receivers = append(config.Receivers, receiver)
-
-	//update the secret
-	d, err := yaml.Marshal(config)
-
-	logrus.Infof("after adding receiver: %s", string(d))
-
-	if err != nil {
-		return "", err
-	}
-
-	return string(d), nil
-}
-
-func (c *Operator) updateReceiver2Config(configStr string, r interface{}) (string, error) {
-	logrus.Infof("before deleting receiver: %s", configStr)
-	recipient := r.(*v1beta1.Recipient)
-	config, err := alertconfig.Load(configStr)
-	if err != nil {
-		return "", err
-	}
-
-	for _, item := range config.Receivers {
-		if item.Name == recipient.Name {
-			if recipient.EmailRecipient.Address != "" {
-				email := &alertconfig.EmailConfig{
-					To: recipient.EmailRecipient.Address,
-				}
-				item.EmailConfigs[0] = email
-			} else if recipient.SlackRecipient.Channel != "" {
-				slack := &alertconfig.SlackConfig{
-					Channel: recipient.SlackRecipient.Channel,
-					Text:    "{{ (index .Alerts 0).Labels.target_type}} {{ (index .Alerts 0).Labels.target_id}} is unhealthy",
-					Pretext: "{{ (index .Alerts 0).Labels.description}}",
-					Title:   "Alert From Rancher",
-				}
-				item.SlackConfigs[0] = slack
-			} else if recipient.PagerDutyRecipient.ServiceKey != "" {
-				pagerduty := &alertconfig.PagerdutyConfig{
-					ServiceKey: alertconfig.Secret(recipient.PagerDutyRecipient.ServiceKey),
-				}
-				item.PagerdutyConfigs[0] = pagerduty
-			}
-		}
-	}
-	//update the secret
-	d, err := yaml.Marshal(config)
-	logrus.Infof("after deleting receiver: %s", string(d))
-	if err != nil {
-		return "", err
-	}
-
-	return string(d), nil
-}
-
-func (c *Operator) deleteReceiver2Config(configStr string, r interface{}) (string, error) {
-	logrus.Infof("before deleting receiver: %s", configStr)
-	recipient := r.(*v1beta1.Recipient)
-	config, err := alertconfig.Load(configStr)
-	if err != nil {
-		return "", err
-	}
-
-	receivers := config.Receivers
-	for i, item := range receivers {
-		if item.Name == recipient.Name {
-			receivers = append(receivers[:i], receivers[i+1:]...)
-			break
-		}
-	}
-	config.Receivers = receivers
-	//update the secret
-	d, err := yaml.Marshal(config)
-	logrus.Infof("after deleting receiver: %s", string(d))
-	if err != nil {
-		return "", err
-	}
-
-	return string(d), nil
-}
-
-func (c *Operator) updateNotifier2Config(configStr string, n interface{}) (string, error) {
-	logrus.Infof("before updating notifier: %s", configStr)
-	notifier := n.(*v1beta1.Notifier)
-	config, err := alertconfig.Load(configStr)
-	if err != nil {
-		return "", err
-	}
-	if notifier.PagerDutyConfig != nil {
-		config.Global.PagerdutyURL = notifier.PagerDutyConfig.PagerDutyUrl
-	}
-
-	if notifier.SlackConfig != nil {
-		config.Global.SlackAPIURL = alertconfig.Secret(notifier.SlackConfig.SlackApiUrl)
-
-	}
-
-	if notifier.EmailConfig != nil {
-		config.Global.SMTPAuthIdentity = notifier.EmailConfig.SMTPAuthIdentity
-		config.Global.SMTPAuthPassword = alertconfig.Secret(notifier.EmailConfig.SMTPAuthPassword)
-		config.Global.SMTPAuthSecret = alertconfig.Secret(notifier.EmailConfig.SMTPAuthSecret)
-		config.Global.SMTPAuthUsername = notifier.EmailConfig.SMTPAuthUserName
-		config.Global.SMTPFrom = notifier.EmailConfig.SMTPFrom
-		config.Global.SMTPSmarthost = notifier.EmailConfig.SMTPSmartHost
-		config.Global.SMTPRequireTLS = notifier.EmailConfig.SMTPRequireTLS
-	}
-
-	//update the secret
-	d, err := yaml.Marshal(config)
-	logrus.Infof("after updating notifier: %s", string(d))
-	if err != nil {
-		return "", err
-	}
-
-	return string(d), nil
-}
-
-func (c *Operator) reload() error {
-	//TODO: what is the wait time
-	time.Sleep(10 * time.Second)
-	resp, err := http.Post(c.cfg.ManagerUrl+"/-/reload", "text/html", nil)
-	logrus.Infof("Reload alert manager configuration")
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	_, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
 
 	return nil
 }

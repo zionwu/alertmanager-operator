@@ -7,6 +7,7 @@ import (
 
 	"github.com/zionwu/alertmanager-operator/api"
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
+	"github.com/zionwu/alertmanager-operator/util"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	k8sapi "k8s.io/client-go/pkg/api"
@@ -67,6 +68,12 @@ func (w *daemonSetWatcher) handleDelete(obj interface{}) {
 }
 
 func (w *daemonSetWatcher) handleUpdate(oldObj, curObj interface{}) {
+
+	//will not check status if the state is inactive
+	if w.alert.State == v1beta1.AlertStateInactive {
+		return
+	}
+
 	oldDaemonSet, err := convertToDaemonSet(oldObj)
 	if err != nil {
 		logrus.Error("converting to DaemonSet object failed")
@@ -89,11 +96,15 @@ func (w *daemonSetWatcher) handleUpdate(oldObj, curObj interface{}) {
 		return
 	}
 
+	if w.alert.DaemonSetRule.UnavailablePercentage == 0 {
+		return
+	}
+
 	availableThreshold := (100 - w.alert.DaemonSetRule.UnavailablePercentage) * (curDaemonSet.Status.DesiredNumberScheduled) / 100
 
 	if curDaemonSet.Status.NumberAvailable <= availableThreshold {
 		logrus.Infof("%s is firing", w.alert.Description)
-		err = sendAlert(w.cfg.ManagerUrl, w.alert)
+		err = util.SendAlert(w.cfg.ManagerUrl, w.alert)
 		if err != nil {
 			logrus.Errorf("Error while sending alert: %v", err)
 		}
