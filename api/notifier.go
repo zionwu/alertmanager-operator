@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -150,6 +151,32 @@ func (s *Server) updateNotifier(rw http.ResponseWriter, req *http.Request) (err 
 }
 
 func (s *Server) validateNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
+
+	//apiContext := api.GetApiContext(req)
+	requestBytes, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		logrus.Error("Error while reading request %s", err)
+		return err
+	}
+	notifier := Notifier{}
+
+	if err := json.Unmarshal(requestBytes, &notifier); err != nil {
+		logrus.Error("Error while unmarshal request %s", err)
+		return err
+	}
+
+	if notifier.SlackConfig.SlackApiUrl != "" {
+		if err := util.ValidateSlack(&notifier.SlackConfig); err != nil {
+			return fmt.Errorf("failed to validate for slack config: %v", err)
+		}
+	} else if notifier.EmailConfig.SMTPSmartHost != "" {
+		if err := util.ValidateEmail(&notifier.EmailConfig); err != nil {
+			return fmt.Errorf("failed to validate for email config: %v", err)
+		}
+	} else {
+
+	}
+
 	return nil
 }
 

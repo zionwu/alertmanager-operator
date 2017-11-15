@@ -56,6 +56,8 @@ func NewRouter(s *Server) *mux.Router {
 	//r.Methods(http.MethodDelete).Path("/v5/notifiers/{id}").Handler(f(schemas, s.deleteNotifier))
 	r.Methods(http.MethodPut).Path("/v5/notifiers/{id}").Handler(f(schemas, s.updateNotifier))
 
+	r.Methods(http.MethodPost).Path("/v5/notifiers").Queries("action", "validate").Handler(f(schemas, s.validateNotifier))
+
 	//recipient route
 	r.Methods(http.MethodGet).Path("/v5/recipient").Handler(f(schemas, s.recipientsList))
 	r.Methods(http.MethodGet).Path("/v5/recipients").Handler(f(schemas, s.recipientsList))

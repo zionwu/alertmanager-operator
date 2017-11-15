@@ -30,13 +30,13 @@ type SlackConfigSpec struct {
 }
 
 type EmailConfigSpec struct {
-	SMTPFrom         string `json:"smtpFrom"`
+	//SMTPFrom         string `json:"smtpFrom"`
 	SMTPSmartHost    string `json:"smtpSmartHost"`
 	SMTPAuthUserName string `json:"smtpAuthUsername"`
 	SMTPAuthPassword string `json:"smtpAuthPassword"`
-	SMTPAuthSecret   string `json:"smtpAuthSecret"`
-	SMTPAuthIdentity string `json:"smtpAuthIdentity"`
-	SMTPRequireTLS   bool   `json:"smtpRequiredTls"`
+	//SMTPAuthSecret   string `json:"smtpAuthSecret"`
+	//SMTPAuthIdentity string `json:"smtpAuthIdentity"`
+	//SMTPRequireTLS   bool   `json:"smtpRequiredTls"`
 }
 
 //TODO: decide the field in status

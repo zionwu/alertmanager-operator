@@ -301,7 +301,7 @@ type GlobalConfig struct {
 	SMTPAuthPassword Secret `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
 	SMTPAuthSecret   Secret `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
 	SMTPAuthIdentity string `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
-	SMTPRequireTLS   bool   `yaml:"smtp_require_tls,omitempty" json:"smtp_require_tls,omitempty"`
+	SMTPRequireTLS   bool   `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
 	SlackAPIURL      Secret `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
 	PagerdutyURL     string `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
 	HipchatURL       string `yaml:"hipchat_url,omitempty" json:"hipchat_url,omitempty"`

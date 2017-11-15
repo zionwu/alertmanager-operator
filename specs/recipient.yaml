@@ -3,6 +3,7 @@ kind: Recipient
 metadata:
   name: receiver123
 
+recipientType: email
 emailRecipient:
   address: test
 slackRecipient:

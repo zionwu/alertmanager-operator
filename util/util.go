@@ -2,10 +2,14 @@ package util
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/smtp"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -306,4 +310,226 @@ func GetState(alert *v1beta1.Alert, apiAlerts []*dispatch.APIAlert) string {
 
 	return v1beta1.AlertStateActive
 
+}
+
+func ValidateSlack(config *v1beta1.SlackConfigSpec) error {
+	req := struct {
+		Text string `json:"text"`
+	}{}
+
+	req.Text = "webhook validation"
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.Post(config.SlackApiUrl, "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("http status code is not 200")
+	}
+
+	res, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if string(res) != "ok" {
+		return fmt.Errorf("http response is not ok")
+	}
+
+	return nil
+
+}
+
+func ValidatePagerDuty(config *v1beta1.EmailConfigSpec) error {
+
+	return nil
+}
+
+func ValidateEmail(config *v1beta1.EmailConfigSpec) error {
+	// We need to know the hostname for both auth and TLS.
+	var c *smtp.Client
+	host, port, err := net.SplitHostPort(config.SMTPSmartHost)
+	if err != nil {
+		return fmt.Errorf("invalid address: %s", err)
+	}
+
+	if port == "465" || port == "587" {
+		conn, err := tls.Dial("tcp", config.SMTPSmartHost, &tls.Config{ServerName: host})
+		if err != nil {
+			return err
+		}
+		c, err = smtp.NewClient(conn, config.SMTPSmartHost)
+		if err != nil {
+			return err
+		}
+
+	} else {
+		// Connect to the SMTP smarthost.
+		c, err = smtp.Dial(config.SMTPSmartHost)
+		if err != nil {
+			return err
+		}
+	}
+	defer c.Quit()
+
+	/*
+		if config.SMTPRequireTLS {
+			if ok, _ := c.Extension("STARTTLS"); !ok {
+				return fmt.Errorf("require_tls: true (default), but %q does not advertise the STARTTLS extension", config.SMTPSmartHost)
+			}
+			tlsConf := &tls.Config{ServerName: host}
+			if err := c.StartTLS(tlsConf); err != nil {
+				return fmt.Errorf("starttls failed: %s", err)
+			}
+		}
+	*/
+
+	if ok, mech := c.Extension("AUTH"); ok {
+		logrus.Debugf("smtp auth type: %s", mech)
+		auth, err := auth(mech, config)
+		if err != nil {
+			return err
+		}
+		if auth != nil {
+			if err := c.Auth(auth); err != nil {
+				return fmt.Errorf("%T failed: %s", auth, err)
+			}
+		}
+	}
+
+	/*  comment this as the smtp_from is the same as username, not nessary to validate
+
+	data := "smtp server configuation validation"
+
+	from := config.SMTPFrom
+	to := config.SMTPFrom
+
+	if err != nil {
+		return err
+	}
+
+	addrs, err := mail.ParseAddressList(from)
+	if err != nil {
+		return fmt.Errorf("parsing from addresses: %s", err)
+	}
+	if len(addrs) != 1 {
+		return fmt.Errorf("must be exactly one from address")
+	}
+	if err := c.Mail(addrs[0].Address); err != nil {
+		return fmt.Errorf("sending mail from: %s", err)
+	}
+	addrs, err = mail.ParseAddressList(to)
+	if err != nil {
+		return fmt.Errorf("parsing to addresses: %s", err)
+	}
+	for _, addr := range addrs {
+		if err := c.Rcpt(addr.Address); err != nil {
+			return fmt.Errorf("sending rcpt to: %s", err)
+		}
+	}
+
+	// Send the email body.
+	wc, err := c.Data()
+	if err != nil {
+		return err
+	}
+	defer wc.Close()
+
+	buffer := &bytes.Buffer{}
+	multipartWriter := multipart.NewWriter(buffer)
+
+	fmt.Fprintf(wc, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
+	fmt.Fprintf(wc, "Content-Type: multipart/alternative;  boundary=%s\r\n", multipartWriter.Boundary())
+	fmt.Fprintf(wc, "MIME-Version: 1.0\r\n")
+
+	// TODO: Add some useful headers here, such as URL of the alertmanager
+	// and active/resolved.
+	fmt.Fprintf(wc, "\r\n")
+
+	if len(data) > 0 {
+		// Text template
+		w, err := multipartWriter.CreatePart(textproto.MIMEHeader{"Content-Type": {"text/plain; charset=UTF-8"}})
+		if err != nil {
+			return fmt.Errorf("creating part for text template: %s", err)
+		}
+
+		_, err = w.Write([]byte(data))
+		if err != nil {
+			return err
+		}
+	}
+
+	multipartWriter.Close()
+	wc.Write(buffer.Bytes())
+	*/
+	return nil
+}
+
+func auth(mechs string, config *v1beta1.EmailConfigSpec) (smtp.Auth, error) {
+	username := config.SMTPAuthUserName
+
+	for _, mech := range strings.Split(mechs, " ") {
+		switch mech {
+		/*
+			case "CRAM-MD5":
+				secret := string(config.SMTPAuthSecret)
+				if secret == "" {
+					continue
+				}
+				return smtp.CRAMMD5Auth(username, secret), nil
+
+			case "PLAIN":
+				password := string(config.SMTPAuthPassword)
+				if password == "" {
+					continue
+				}
+				identity := config.SMTPAuthIdentity
+
+				// We need to know the hostname for both auth and TLS.
+				host, _, err := net.SplitHostPort(config.SMTPSmartHost)
+				if err != nil {
+					return nil, fmt.Errorf("invalid address: %s", err)
+				}
+				return smtp.PlainAuth(identity, username, password, host), nil
+		*/
+		case "LOGIN":
+			password := string(config.SMTPAuthPassword)
+			if password == "" {
+				continue
+			}
+
+			return &loginAuth{username, password}, nil
+		}
+	}
+	return nil, fmt.Errorf("smtp server does not support login auth")
+}
+
+type loginAuth struct {
+	username, password string
+}
+
+func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
+	return "LOGIN", []byte{}, nil
+}
+
+// Used for AUTH LOGIN. (Maybe password should be encrypted)
+func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+	if more {
+		switch strings.ToLower(string(fromServer)) {
+		case "username:":
+			return []byte(a.username), nil
+		case "password:":
+			return []byte(a.password), nil
+		default:
+			return nil, errors.New("unexpected server challenge")
+		}
+	}
+	return nil, nil
 }

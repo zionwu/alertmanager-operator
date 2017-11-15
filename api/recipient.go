@@ -164,13 +164,13 @@ func (s *Server) updateRecipient(rw http.ResponseWriter, req *http.Request) (err
 	id := mux.Vars(req)["id"]
 	requestBytes, err := ioutil.ReadAll(req.Body)
 	if err != nil {
-		logrus.Error("Error while reading request: %v", err)
+		logrus.Errorf("Error while reading request: %v", err)
 		return err
 	}
 	recipient := Recipient{}
 
 	if err := json.Unmarshal(requestBytes, &recipient); err != nil {
-		logrus.Error("Error while unmarshaling request: %v", err)
+		logrus.Errorf("Error while unmarshaling request: %v", err)
 		return err
 	}
 

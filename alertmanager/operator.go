@@ -226,13 +226,13 @@ func (c *Operator) sync(key interface{}) error {
 	}
 
 	if notifier.EmailConfig != nil {
-		config.Global.SMTPAuthIdentity = notifier.EmailConfig.SMTPAuthIdentity
+		//config.Global.SMTPAuthIdentity = notifier.EmailConfig.SMTPAuthIdentity
 		config.Global.SMTPAuthPassword = alertconfig.Secret(notifier.EmailConfig.SMTPAuthPassword)
-		config.Global.SMTPAuthSecret = alertconfig.Secret(notifier.EmailConfig.SMTPAuthSecret)
+		//config.Global.SMTPAuthSecret = alertconfig.Secret(notifier.EmailConfig.SMTPAuthSecret)
 		config.Global.SMTPAuthUsername = notifier.EmailConfig.SMTPAuthUserName
-		config.Global.SMTPFrom = notifier.EmailConfig.SMTPFrom
+		config.Global.SMTPFrom = notifier.EmailConfig.SMTPAuthUserName
 		config.Global.SMTPSmarthost = notifier.EmailConfig.SMTPSmartHost
-		config.Global.SMTPRequireTLS = notifier.EmailConfig.SMTPRequireTLS
+		config.Global.SMTPRequireTLS = false
 	}
 
 	for _, recipient := range recipientList.Items {
@@ -277,6 +277,7 @@ func getDefaultConfig() *alertconfig.Config {
 	config.Global = &alertconfig.GlobalConfig{
 		SlackAPIURL:    "slack_api_url",
 		ResolveTimeout: resolveTimeout,
+		SMTPRequireTLS: false,
 	}
 
 	slackConfigs := []*alertconfig.SlackConfig{}
