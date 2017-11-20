@@ -24,6 +24,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api"
+	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -199,6 +200,11 @@ func (c *Operator) sync(key interface{}) error {
 		logrus.Errorf("Error while getting notifier: %v", err)
 		return err
 	}
+	nSecret, err := c.kclient.Core().Secrets("default").Get("rancher-notifier", metav1.GetOptions{})
+	if err != nil {
+		logrus.Errorf("Error while getting notifier secret: %v", err)
+		return err
+	}
 
 	al, err := c.mclient.MonitoringV1().Alerts(metav1.NamespaceAll).List(metav1.ListOptions{})
 	if err != nil {
@@ -221,13 +227,15 @@ func (c *Operator) sync(key interface{}) error {
 	}
 
 	if notifier.SlackConfig != nil && notifier.SlackConfig.SlackApiUrl != "" {
-		config.Global.SlackAPIURL = alertconfig.Secret(notifier.SlackConfig.SlackApiUrl)
+		slackApiUrl := string(nSecret.Data["slackApiUrl"])
+		config.Global.SlackAPIURL = alertconfig.Secret(slackApiUrl)
 
 	}
 
 	if notifier.EmailConfig != nil {
 		//config.Global.SMTPAuthIdentity = notifier.EmailConfig.SMTPAuthIdentity
-		config.Global.SMTPAuthPassword = alertconfig.Secret(notifier.EmailConfig.SMTPAuthPassword)
+		smtpAuthPassword := string(nSecret.Data["smtpAuthPassword"])
+		config.Global.SMTPAuthPassword = alertconfig.Secret(smtpAuthPassword)
 		//config.Global.SMTPAuthSecret = alertconfig.Secret(notifier.EmailConfig.SMTPAuthSecret)
 		config.Global.SMTPAuthUsername = notifier.EmailConfig.SMTPAuthUserName
 		config.Global.SMTPFrom = notifier.EmailConfig.SMTPAuthUserName
@@ -552,12 +560,14 @@ func (c *Operator) addRoute2Config(config *alertconfig.Config, alert *v1beta1.Al
 func (c *Operator) addReceiver2Config(config *alertconfig.Config, recipient *v1beta1.Recipient) error {
 
 	receiver := &alertconfig.Receiver{Name: recipient.Name}
-	if recipient.EmailRecipient.Address != "" {
+	switch recipient.RecipientType {
+
+	case "email":
 		email := &alertconfig.EmailConfig{
 			To: recipient.EmailRecipient.Address,
 		}
 		receiver.EmailConfigs = append(receiver.EmailConfigs, email)
-	} else if recipient.SlackRecipient.Channel != "" {
+	case "slack":
 		slack := &alertconfig.SlackConfig{
 			//TODO: set a better text content
 			Channel: recipient.SlackRecipient.Channel,
@@ -566,9 +576,16 @@ func (c *Operator) addReceiver2Config(config *alertconfig.Config, recipient *v1b
 			Title:   "Alert From Rancher",
 		}
 		receiver.SlackConfigs = append(receiver.SlackConfigs, slack)
-	} else if recipient.PagerDutyRecipient.ServiceKey != "" {
+	case "pagerduty":
+		secret, err := c.kclient.Core().Secrets(recipient.Namespace).Get(recipient.Name, metav1.GetOptions{})
+		if err != nil {
+			logrus.Errorf("Error while getting pagerduty secret: %v", err)
+			return err
+		}
+		serviceKey := string(secret.Data["serviceKey"])
+
 		pagerduty := &alertconfig.PagerdutyConfig{
-			ServiceKey: alertconfig.Secret(recipient.PagerDutyRecipient.ServiceKey),
+			ServiceKey: alertconfig.Secret(serviceKey),
 		}
 		receiver.PagerdutyConfigs = append(receiver.PagerdutyConfigs, pagerduty)
 	}
@@ -613,13 +630,26 @@ func (c *Operator) createNotifier() error {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "rancher-notifier",
 		},
-		EmailConfig:     &v1beta1.EmailConfigSpec{},
-		SlackConfig:     &v1beta1.SlackConfigSpec{},
-		PagerDutyConfig: &v1beta1.PagerDutyConfigSpec{},
+		EmailConfig: &v1beta1.EmailConfigSpec{},
+		SlackConfig: &v1beta1.SlackConfigSpec{},
+		PagerDutyConfig: &v1beta1.PagerDutyConfigSpec{
+			PagerDutyUrl: "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
+		},
 	}
 	_, err := nclient.Create(notifier)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return errors.Wrapf(err, "Getting notifier")
+		return errors.Wrapf(err, "Creating notifier")
+	}
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "rancher-notifier",
+		},
+		Data: map[string][]byte{},
+	}
+	_, err = c.kclient.Core().Secrets("default").Create(secret)
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return errors.Wrapf(err, "Creating notifier secrets")
 	}
 
 	return nil

@@ -50,7 +50,8 @@ func (s *synchronizer) Run(stopc <-chan struct{}) {
 							continue
 						}
 
-						state := util.GetState(alert, apiAlerts)
+						state, a := util.GetState(alert, apiAlerts)
+						needUpdate := false
 
 						//only take ation when the state is not the same
 						if state != alert.State {
@@ -61,8 +62,31 @@ func (s *synchronizer) Run(stopc <-chan struct{}) {
 							}
 
 							alert.State = state
-							s.mclient.MonitoringV1().Alerts(alert.Namespace).Update(alert)
+							needUpdate = true
 						}
+
+						if state == v1beta1.AlertStateSilenced || state == v1beta1.AlertStateAlerting {
+							if !alert.StartsAt.Equal(a.StartsAt) {
+								alert.StartsAt = a.StartsAt
+								needUpdate = true
+							}
+
+							if !alert.EndsAt.Equal(a.EndsAt) {
+								alert.EndsAt = a.EndsAt
+								needUpdate = true
+							}
+						} else {
+							alert.StartsAt = time.Time{}
+							alert.EndsAt = time.Time{}
+						}
+
+						if needUpdate {
+							_, err := s.mclient.MonitoringV1().Alerts(alert.Namespace).Update(alert)
+							if err != nil {
+								logrus.Errorf("Error occurred while syn alert state and time: %v", err)
+							}
+						}
+
 					}
 				}
 			}

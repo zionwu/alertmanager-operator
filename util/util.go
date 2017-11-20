@@ -296,19 +296,19 @@ func RemoveSilence(url string, alert *v1beta1.Alert) error {
 	return nil
 }
 
-func GetState(alert *v1beta1.Alert, apiAlerts []*dispatch.APIAlert) string {
+func GetState(alert *v1beta1.Alert, apiAlerts []*dispatch.APIAlert) (string, *dispatch.APIAlert) {
 
 	for _, a := range apiAlerts {
 		if string(a.Labels["alert_id"]) == alert.Name && string(a.Labels["namespace"]) == alert.Namespace {
 			if a.Status.State == types.AlertStateSuppressed {
-				return v1beta1.AlertStateSilenced
+				return v1beta1.AlertStateSilenced, a
 			} else {
-				return v1beta1.AlertStateAlerting
+				return v1beta1.AlertStateAlerting, a
 			}
 		}
 	}
 
-	return v1beta1.AlertStateActive
+	return v1beta1.AlertStateActive, nil
 
 }
 
@@ -324,7 +324,7 @@ func ValidateSlack(config *v1beta1.SlackConfigSpec) error {
 		return err
 	}
 
-	resp, err := http.Post(config.SlackApiUrl, "application/json", bytes.NewBuffer(data))
+	resp, err := http.Post(string(config.SlackApiUrl), "application/json", bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
@@ -500,7 +500,7 @@ func auth(mechs string, config *v1beta1.EmailConfigSpec) (smtp.Auth, error) {
 				return smtp.PlainAuth(identity, username, password, host), nil
 		*/
 		case "LOGIN":
-			password := string(config.SMTPAuthPassword)
+			password := string(string(config.SMTPAuthPassword))
 			if password == "" {
 				continue
 			}

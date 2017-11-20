@@ -154,7 +154,9 @@ func (s *Server) deleteAlert(rw http.ResponseWriter, req *http.Request) (err err
 		logrus.Errorf("Error while deleting k8s alert CRD", err)
 		return err
 	}
-	apiContext.Write(&alert)
+
+	ra := toAlertResource(apiContext, alert)
+	apiContext.Write(ra)
 	return nil
 
 }

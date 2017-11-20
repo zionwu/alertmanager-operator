@@ -14,6 +14,7 @@ import (
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
 	"github.com/zionwu/alertmanager-operator/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 func (s *Server) notifiersList(rw http.ResponseWriter, req *http.Request) (err error) {
@@ -69,6 +70,23 @@ func (s *Server) createNotifier(rw http.ResponseWriter, req *http.Request) (err 
 	}
 
 	notifier.Id = util.GenerateUUID()
+
+	data := map[string][]byte{}
+	data["smtpAuthPassword"] = []byte(string(notifier.EmailConfig.SMTPAuthPassword))
+	data["slackApiUrl"] = []byte(notifier.SlackConfig.SlackApiUrl)
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: notifier.Id,
+		},
+		Data: data,
+	}
+	_, err = s.clientset.Core().Secrets("default").Create(secret)
+	if err != nil {
+		logrus.Error("Error while creating secrets for notifier CRD: %s", err)
+		return err
+	}
+
 	//TODO: get env from request
 	n := toNotifierCRD(&notifier)
 	_, err = s.mclient.MonitoringV1().Notifiers().Create(n)
@@ -78,8 +96,7 @@ func (s *Server) createNotifier(rw http.ResponseWriter, req *http.Request) (err 
 		return err
 	}
 
-	res := toNotifierResource(apiContext, n)
-	apiContext.Write(res)
+	apiContext.Write(&notifier)
 	return nil
 
 }
@@ -107,6 +124,13 @@ func (s *Server) deleteNotifier(rw http.ResponseWriter, req *http.Request) (err 
 	//TODO: if it is in used, not allow to delete
 	id := mux.Vars(req)["id"]
 	opt := metav1.DeleteOptions{}
+
+	err = s.clientset.Core().Secrets("default").Delete(id, &opt)
+	if err != nil {
+		logrus.Error("Error while deleting notifier CRD secret: %s", err)
+		return err
+	}
+
 	err = s.mclient.MonitoringV1().Notifiers().Delete(id, &opt)
 	if err != nil {
 		logrus.Error("Error while deleting notifier CRD: %s", err)
@@ -137,10 +161,26 @@ func (s *Server) updateNotifier(rw http.ResponseWriter, req *http.Request) (err 
 		return err
 	}
 
+	data := map[string][]byte{}
+	data["smtpAuthPassword"] = []byte(string(notifier.EmailConfig.SMTPAuthPassword))
+	data["slackApiUrl"] = []byte(string(notifier.SlackConfig.SlackApiUrl))
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: id,
+		},
+		Data: data,
+	}
+
+	_, err = s.clientset.Core().Secrets("default").Update(secret)
+	if err != nil {
+		logrus.Error("Error while updating notifier CRD secrets %s", err)
+		return err
+	}
+
 	notifier.Id = id
 	n := toNotifierCRD(&notifier)
 	_, err = s.mclient.MonitoringV1().Notifiers().Update(n)
-
 	if err != nil {
 		logrus.Error("Error while updating notifier CRD %s", err)
 		return err

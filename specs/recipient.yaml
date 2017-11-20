@@ -8,7 +8,9 @@ emailRecipient:
   address: test
 slackRecipient:
   channel: test
+webhookRecipient:
+  url: test
 pagerdutyRecipient:
-  serviceKey: test
+  serviceKey: <secret>
 
 

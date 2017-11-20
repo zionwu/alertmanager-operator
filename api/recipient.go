@@ -14,6 +14,7 @@ import (
 	"github.com/zionwu/alertmanager-operator/client/v1beta1"
 	"github.com/zionwu/alertmanager-operator/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 func (s *Server) recipientsList(rw http.ResponseWriter, req *http.Request) (err error) {
@@ -78,6 +79,22 @@ func (s *Server) createRecipient(rw http.ResponseWriter, req *http.Request) (err
 	}
 
 	recipient.Id = util.GenerateUUID()
+
+	data := map[string][]byte{}
+	data["serviceKey"] = []byte(string(recipient.PagerDutyRecipient.ServiceKey))
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: recipient.Id,
+		},
+		Data: data,
+	}
+
+	_, err = s.clientset.Core().Secrets(recipient.Namespace).Create(secret)
+	if err != nil {
+		logrus.Errorf("Error while creating recipient CRD secret: %v", err)
+		return err
+	}
+
 	n := toRecipientCRD(&recipient)
 	recipientCRD, err := s.mclient.MonitoringV1().Recipients(recipient.Namespace).Create(n)
 
@@ -147,6 +164,13 @@ func (s *Server) deleteRecipient(rw http.ResponseWriter, req *http.Request) (err
 	}
 
 	opt := metav1.DeleteOptions{}
+
+	err = s.clientset.Core().Secrets(namespace).Delete(id, &opt)
+	if err != nil {
+		logrus.Error("Error while deleting recipient CRD secret: %v", err)
+		return err
+	}
+
 	err = s.mclient.MonitoringV1().Recipients(namespace).Delete(id, &opt)
 	if err != nil {
 		logrus.Error("Error while deleting recipient CRD: %v", err)
@@ -179,6 +203,21 @@ func (s *Server) updateRecipient(rw http.ResponseWriter, req *http.Request) (err
 	}
 
 	recipient.Id = id
+
+	data := map[string][]byte{}
+	data["serviceKey"] = []byte(string(recipient.PagerDutyRecipient.ServiceKey))
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: recipient.Id,
+		},
+		Data: data,
+	}
+
+	_, err = s.clientset.Core().Secrets(recipient.Namespace).Update(secret)
+	if err != nil {
+		logrus.Errorf("Error while updating recipient CRD secret: %v", err)
+		return err
+	}
 
 	n := toRecipientCRD(&recipient)
 	_, err = s.mclient.MonitoringV1().Recipients(recipient.Namespace).Update(n)

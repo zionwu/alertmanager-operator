@@ -4,15 +4,15 @@ metadata:
   name: notifier-email
   
 emailConfig:
-  smtpAuthIdentity: identity1
-  smtpAuthPassword: abc123
-  smtpAuthSecret: secretsxxx
+  #  smtpAuthIdentity: identity1
+  smtpAuthPassword:  <secret>
+  #  smtpAuthSecret: secretsxxx
   smtpAuthUsername: viky
-  smtpFrom: zion@rancher.coom
-  smtpRequiredTls: false
+  # smtpFrom: zion@rancher.coom
+  # smtpRequiredTls: false
   smtpSmartHost: '127.0.0.1'
 slackConfig:
-  slackApiUrl: https://hooks.slack.com/services/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
+  slackApiUrl:  <secret>
 pagerdutyConfig:
   pagerdutyUrl: zion123.pagerduty.com
 

@@ -1,8 +1,12 @@
 package v1beta1
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+type Secret string
 
 type Notifier struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -26,14 +30,14 @@ type PagerDutyConfigSpec struct {
 }
 
 type SlackConfigSpec struct {
-	SlackApiUrl string `json:"slackApiUrl"`
+	SlackApiUrl Secret `json:"slackApiUrl"`
 }
 
 type EmailConfigSpec struct {
 	//SMTPFrom         string `json:"smtpFrom"`
 	SMTPSmartHost    string `json:"smtpSmartHost"`
 	SMTPAuthUserName string `json:"smtpAuthUsername"`
-	SMTPAuthPassword string `json:"smtpAuthPassword"`
+	SMTPAuthPassword Secret `json:"smtpAuthPassword"`
 	//SMTPAuthSecret   string `json:"smtpAuthSecret"`
 	//SMTPAuthIdentity string `json:"smtpAuthIdentity"`
 	//SMTPRequireTLS   bool   `json:"smtpRequiredTls"`
@@ -64,7 +68,7 @@ type RecipientList struct {
 }
 
 type PagerDutyRecipientSpec struct {
-	ServiceKey string `json:"serviceKey"`
+	ServiceKey Secret `json:"serviceKey"`
 }
 
 type SlackRecipientSpec struct {
@@ -95,6 +99,9 @@ type Alert struct {
 	DaemonSetRule   *RuleSpec            `json:"daemonSetRule, omitempty"`
 	AdvancedOptions *AdvancedOptionsSpec `json:"advancedOptions, omitempty"`
 	State           string               `json:"state,omitempty"`
+
+	StartsAt time.Time `json:"startsAt,omitempty"`
+	EndsAt   time.Time `json:"endsAt,omitempty"`
 
 	//TODO: check what should do with status
 	Status *AlertStatus `json:"status,omitempty"`

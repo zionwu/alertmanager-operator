@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/rancher/go-rancher/api"
 	"github.com/rancher/go-rancher/client"
@@ -53,6 +54,8 @@ type Alert struct {
 	AdvancedOptions v1beta1.AdvancedOptionsSpec `json:"advancedOptions"`
 	Namespace       string                      `json:"namespace"`
 	RecipientID     string                      `json:"recipientId"`
+	StartsAt        time.Time                   `json:"startsAt,omitempty"`
+	EndsAt          time.Time                   `json:"endsAt,omitempty"`
 }
 
 type Recipient struct {
@@ -232,6 +235,9 @@ func toNotifierCRD(rn *Notifier) *v1beta1.Notifier {
 		PagerDutyConfig: &rn.PagerDutyConfig,
 	}
 
+	n.EmailConfig.SMTPAuthPassword = "<secret>"
+	n.SlackConfig.SlackApiUrl = "<secret>"
+
 	return n
 }
 
@@ -268,6 +274,8 @@ func toRecipientCRD(rn *Recipient) *v1beta1.Recipient {
 		PagerDutyRecipient: &rn.PagerDutyRecipient,
 	}
 
+	n.PagerDutyRecipient.ServiceKey = "<secret>"
+
 	return n
 }
 
@@ -285,6 +293,8 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 		StatefulSetRule: *a.StatefulSetRule,
 		DaemonSetRule:   *a.DaemonSetRule,
 		AdvancedOptions: *a.AdvancedOptions,
+		StartsAt:        a.StartsAt,
+		EndsAt:          a.EndsAt,
 	}
 
 	ra.Resource = client.Resource{
@@ -320,6 +330,8 @@ func toAlertCRD(ra *Alert) *v1beta1.Alert {
 		DaemonSetRule:   &ra.DaemonSetRule,
 		AdvancedOptions: &ra.AdvancedOptions,
 		State:           ra.State,
+		StartsAt:        ra.StartsAt,
+		EndsAt:          ra.EndsAt,
 	}
 
 	return alert
