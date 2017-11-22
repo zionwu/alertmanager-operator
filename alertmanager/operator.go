@@ -222,9 +222,7 @@ func (c *Operator) sync(key interface{}) error {
 
 	config := getDefaultConfig()
 
-	if notifier.PagerDutyConfig != nil && notifier.PagerDutyConfig.PagerDutyUrl != "" {
-		config.Global.PagerdutyURL = notifier.PagerDutyConfig.PagerDutyUrl
-	}
+	config.Global.PagerdutyURL = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
 
 	if notifier.SlackConfig != nil && notifier.SlackConfig.SlackApiUrl != "" {
 		slackApiUrl := string(nSecret.Data["slackApiUrl"])
@@ -561,19 +559,29 @@ func (c *Operator) addReceiver2Config(config *alertconfig.Config, recipient *v1b
 
 	receiver := &alertconfig.Receiver{Name: recipient.Name}
 	switch recipient.RecipientType {
+	case "webhook":
+		webhook := &alertconfig.WebhookConfig{
+			URL: recipient.WebhookRecipient.URL,
+		}
+		receiver.WebhookConfigs = append(receiver.WebhookConfigs, webhook)
 
 	case "email":
+		header := map[string]string{}
+		header["Subject"] = "Alert from Rancher: {{ (index .Alerts 0).Labels.description}}"
 		email := &alertconfig.EmailConfig{
-			To: recipient.EmailRecipient.Address,
+			To:      recipient.EmailRecipient.Address,
+			Headers: header,
+			//HTML:    "Resource Type:  {{ (index .Alerts 0).Labels.target_type}}\nResource Name:  {{ (index .Alerts 0).Labels.target_id}}\nNamespace:  {{ (index .Alerts 0).Labels.namespace}}\n",
 		}
 		receiver.EmailConfigs = append(receiver.EmailConfigs, email)
 	case "slack":
 		slack := &alertconfig.SlackConfig{
 			//TODO: set a better text content
 			Channel: recipient.SlackRecipient.Channel,
-			Text:    "{{ (index .Alerts 0).Labels.target_type}} {{ (index .Alerts 0).Labels.target_id}} is unhealthy",
-			Pretext: "{{ (index .Alerts 0).Labels.description}}",
-			Title:   "Alert From Rancher",
+			Text:    "Resource Type:  {{ (index .Alerts 0).Labels.target_type}}\nResource Name:  {{ (index .Alerts 0).Labels.target_id}}\nNamespace:  {{ (index .Alerts 0).Labels.namespace}}\n",
+			Title:   "{{ (index .Alerts 0).Labels.description}}",
+			Pretext: "Alert From Rancher",
+			Color:   `{{ if eq (index .Alerts 0).Labels.severity "critical" }}danger{{ else if eq (index .Alerts 0).Labels.severity "warning" }}warning{{ else }}good{{ end }}`,
 		}
 		receiver.SlackConfigs = append(receiver.SlackConfigs, slack)
 	case "pagerduty":
@@ -585,7 +593,8 @@ func (c *Operator) addReceiver2Config(config *alertconfig.Config, recipient *v1b
 		serviceKey := string(secret.Data["serviceKey"])
 
 		pagerduty := &alertconfig.PagerdutyConfig{
-			ServiceKey: alertconfig.Secret(serviceKey),
+			ServiceKey:  alertconfig.Secret(serviceKey),
+			Description: "{{ (index .Alerts 0).Labels.description}}",
 		}
 		receiver.PagerdutyConfigs = append(receiver.PagerdutyConfigs, pagerduty)
 	}
@@ -632,9 +641,10 @@ func (c *Operator) createNotifier() error {
 		},
 		EmailConfig: &v1beta1.EmailConfigSpec{},
 		SlackConfig: &v1beta1.SlackConfigSpec{},
-		PagerDutyConfig: &v1beta1.PagerDutyConfigSpec{
-			PagerDutyUrl: "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
-		},
+
+		//PagerDutyConfig: &v1beta1.PagerDutyConfigSpec{
+		//	PagerDutyUrl: "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
+		//},
 	}
 	_, err := nclient.Create(notifier)
 	if err != nil && !apierrors.IsAlreadyExists(err) {

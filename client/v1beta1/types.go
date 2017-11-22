@@ -12,9 +12,9 @@ type Notifier struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	EmailConfig     *EmailConfigSpec     `json:"emailConfig,omitempty"`
-	SlackConfig     *SlackConfigSpec     `json:"slackConfig,omitempty"`
-	PagerDutyConfig *PagerDutyConfigSpec `json:"pagerdutyConfig,omitempty"`
+	EmailConfig *EmailConfigSpec `json:"emailConfig,omitempty"`
+	SlackConfig *SlackConfigSpec `json:"slackConfig,omitempty"`
+	//PagerDutyConfig *PagerDutyConfigSpec `json:"pagerdutyConfig,omitempty"`
 	//TODO: check what should do with status
 	Status *NotifierStatus `json:"status,omitempty"`
 }
@@ -56,6 +56,7 @@ type Recipient struct {
 	EmailRecipient     *EmailRecipientSpec     `json:"emailRecipient,omitempty"`
 	SlackRecipient     *SlackRecipientSpec     `json:"slackRecipient,omitempty"`
 	PagerDutyRecipient *PagerDutyRecipientSpec `json:"pagerdutyRecipient,omitempty"`
+	WebhookRecipient   *WebhookRecipientSpec   `json:"webhookRecipient,omitempty"`
 
 	//TODO: check what should do with status
 	Status *RecipientStatus `json:"status,omitempty"`
@@ -68,7 +69,12 @@ type RecipientList struct {
 }
 
 type PagerDutyRecipientSpec struct {
-	ServiceKey Secret `json:"serviceKey"`
+	ServiceName string `json:"serviceName"`
+	ServiceKey  Secret `json:"serviceKey"`
+}
+
+type WebhookRecipientSpec struct {
+	URL string `json:"url"`
 }
 
 type SlackRecipientSpec struct {

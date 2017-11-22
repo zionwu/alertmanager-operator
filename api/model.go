@@ -35,9 +35,9 @@ type Error struct {
 
 type Notifier struct {
 	client.Resource
-	SlackConfig     v1beta1.SlackConfigSpec     `json:"slackConfig"`
-	EmailConfig     v1beta1.EmailConfigSpec     `json:"emailConfig"`
-	PagerDutyConfig v1beta1.PagerDutyConfigSpec `json:"pagerdutyConfig"`
+	SlackConfig v1beta1.SlackConfigSpec `json:"slackConfig"`
+	EmailConfig v1beta1.EmailConfigSpec `json:"emailConfig"`
+	//PagerDutyConfig v1beta1.PagerDutyConfigSpec `json:"pagerdutyConfig"`
 }
 
 type Alert struct {
@@ -65,6 +65,7 @@ type Recipient struct {
 	SlackRecipient     v1beta1.SlackRecipientSpec     `json:"slackRecipient"`
 	EmailRecipient     v1beta1.EmailRecipientSpec     `json:"emailRecipient"`
 	PagerDutyRecipient v1beta1.PagerDutyRecipientSpec `json:"pagerdutyRecipient"`
+	WebhookRecipient   v1beta1.WebhookRecipientSpec   `json:"webhookRecipient"`
 }
 
 func NewServer(config *rest.Config, cfg *Config) *Server {
@@ -118,7 +119,7 @@ func alertSchema(alert *client.Schema) {
 	severity.Create = true
 	severity.Required = true
 	severity.Type = "enum"
-	severity.Options = []string{"info", "warnning", "critical"}
+	severity.Options = []string{"info", "warning", "critical"}
 	severity.Default = "critical"
 	alert.ResourceFields["severity"] = severity
 
@@ -126,8 +127,8 @@ func alertSchema(alert *client.Schema) {
 	state.Create = false
 	state.Update = false
 	state.Type = "enum"
-	state.Default = "inactive"
-	state.Options = []string{"active", "inactive"}
+	state.Default = "active"
+	state.Options = []string{"active", "inactive", "alerting", "silenced"}
 	alert.ResourceFields["state"] = state
 
 	description := alert.ResourceFields["description"]
@@ -190,7 +191,7 @@ func recipientSchema(recipient *client.Schema) {
 	recipientType.Create = true
 	recipientType.Update = false
 	recipientType.Type = "enum"
-	recipientType.Options = []string{"email", "slack", "pagerduty"}
+	recipientType.Options = []string{"email", "slack", "pagerduty", "webhook"}
 	recipient.ResourceFields["recipientType"] = recipientType
 }
 
@@ -218,7 +219,7 @@ func toNotifierResource(apiContext *api.ApiContext, n *v1beta1.Notifier) *Notifi
 
 	rn.EmailConfig = *n.EmailConfig
 	rn.SlackConfig = *n.SlackConfig
-	rn.PagerDutyConfig = *n.PagerDutyConfig
+	//rn.PagerDutyConfig = *n.PagerDutyConfig
 
 	rn.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("notifier", rn.Id)
 
@@ -230,9 +231,9 @@ func toNotifierCRD(rn *Notifier) *v1beta1.Notifier {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: rn.Id,
 		},
-		EmailConfig:     &rn.EmailConfig,
-		SlackConfig:     &rn.SlackConfig,
-		PagerDutyConfig: &rn.PagerDutyConfig,
+		EmailConfig: &rn.EmailConfig,
+		SlackConfig: &rn.SlackConfig,
+		//PagerDutyConfig: &rn.PagerDutyConfig,
 	}
 
 	n.EmailConfig.SMTPAuthPassword = "<secret>"
@@ -257,6 +258,7 @@ func toRecipientResource(apiContext *api.ApiContext, n *v1beta1.Recipient) *Reci
 	rn.EmailRecipient = *n.EmailRecipient
 	rn.SlackRecipient = *n.SlackRecipient
 	rn.PagerDutyRecipient = *n.PagerDutyRecipient
+	rn.WebhookRecipient = *n.WebhookRecipient
 
 	rn.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("recipient", rn.Id)
 
@@ -272,6 +274,7 @@ func toRecipientCRD(rn *Recipient) *v1beta1.Recipient {
 		EmailRecipient:     &rn.EmailRecipient,
 		SlackRecipient:     &rn.SlackRecipient,
 		PagerDutyRecipient: &rn.PagerDutyRecipient,
+		WebhookRecipient:   &rn.WebhookRecipient,
 	}
 
 	n.PagerDutyRecipient.ServiceKey = "<secret>"
@@ -305,11 +308,14 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 		Links:   map[string]string{},
 	}
 
+	ra.Resource.Links["self"] = apiContext.UrlBuilder.ReferenceByIdLink("alert", ra.Id) + "?namespace=" + a.Namespace
 	ra.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("alert", ra.Id)
-	ra.Resource.Links["remove"] = apiContext.UrlBuilder.ReferenceByIdLink("alert", ra.Id)
-	ra.Resource.Links["recipient"] = apiContext.UrlBuilder.ReferenceByIdLink("recipient", ra.RecipientID)
-	ra.Actions["activate"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=activate"
-	ra.Actions["deactivate"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=deactivate"
+	ra.Resource.Links["remove"] = apiContext.UrlBuilder.ReferenceByIdLink("alert", ra.Id) + "?namespace=" + a.Namespace
+	ra.Resource.Links["recipient"] = apiContext.UrlBuilder.ReferenceByIdLink("recipient", ra.RecipientID) + "?namespace=" + a.Namespace
+	ra.Actions["activate"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=activate&" + "namespace=" + a.Namespace
+	ra.Actions["deactivate"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=deactivate&" + "namespace=" + a.Namespace
+	ra.Actions["silence"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=silence&" + "namespace=" + a.Namespace
+	ra.Actions["unsilence"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=unsilence&" + "namespace=" + a.Namespace
 
 	return ra
 }

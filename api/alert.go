@@ -172,7 +172,7 @@ func (s *Server) updateAlert(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 
-	alert := Alert{State: "active"}
+	alert := Alert{}
 
 	if err := json.Unmarshal(requestBytes, &alert); err != nil {
 		logrus.Errorf("Error while unmarshal the request: %v", err)

@@ -235,7 +235,7 @@ func (s *Server) updateRecipient(rw http.ResponseWriter, req *http.Request) (err
 func (s *Server) checkRecipientParam(recipient *Recipient) error {
 
 	recipientType := recipient.RecipientType
-	if !(recipientType == "email" || recipientType == "slack" || recipientType == "pagerduty") {
+	if !(recipientType == "email" || recipientType == "slack" || recipientType == "pagerduty" || recipientType == "webhook") {
 		return fmt.Errorf("recipientTpye should be email/slack/pagerduty")
 	}
 
@@ -251,6 +251,14 @@ func (s *Server) checkRecipientParam(recipient *Recipient) error {
 	case "pagerduty":
 		if recipient.PagerDutyRecipient.ServiceKey == "" {
 			return fmt.Errorf("pagerduty servicekey can't be empty")
+		}
+
+		if recipient.PagerDutyRecipient.ServiceName == "" {
+			return fmt.Errorf("pagerduty service name can't be empty")
+		}
+	case "webhook":
+		if recipient.WebhookRecipient.URL == "" {
+			return fmt.Errorf("webhook url can't be empty")
 		}
 	}
 

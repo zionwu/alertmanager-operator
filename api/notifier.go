@@ -40,6 +40,16 @@ func (s *Server) notifiersList(rw http.ResponseWriter, req *http.Request) (err e
 	data := []interface{}{}
 	for _, item := range notifierList.Items {
 		rn := toNotifierResource(apiContext, item)
+
+		nSecret, err := s.clientset.Core().Secrets("default").Get("rancher-notifier", metav1.GetOptions{})
+		if err != nil {
+			logrus.Errorf("Error while getting notifier secret: %v", err)
+			return err
+		}
+
+		rn.SlackConfig.SlackApiUrl = v1beta1.Secret(string(nSecret.Data["slackApiUrl"]))
+		rn.EmailConfig.SMTPAuthPassword = v1beta1.Secret(string(nSecret.Data["smtpAuthPassword"]))
+
 		data = append(data, rn)
 	}
 	resp.Data = data
@@ -114,6 +124,15 @@ func (s *Server) getNotifier(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 	rn := toNotifierResource(apiContext, n)
+	nSecret, err := s.clientset.Core().Secrets("default").Get("rancher-notifier", metav1.GetOptions{})
+	if err != nil {
+		logrus.Errorf("Error while getting notifier secret: %v", err)
+		return err
+	}
+
+	rn.SlackConfig.SlackApiUrl = v1beta1.Secret(string(nSecret.Data["slackApiUrl"]))
+	rn.EmailConfig.SMTPAuthPassword = v1beta1.Secret(string(nSecret.Data["smtpAuthPassword"]))
+
 	apiContext.WriteResource(rn)
 	return nil
 
@@ -163,7 +182,7 @@ func (s *Server) updateNotifier(rw http.ResponseWriter, req *http.Request) (err 
 
 	data := map[string][]byte{}
 	data["smtpAuthPassword"] = []byte(string(notifier.EmailConfig.SMTPAuthPassword))
-	data["slackApiUrl"] = []byte(string(notifier.SlackConfig.SlackApiUrl))
+	data["slackApiUrl"] = []byte(notifier.SlackConfig.SlackApiUrl)
 
 	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -192,6 +211,11 @@ func (s *Server) updateNotifier(rw http.ResponseWriter, req *http.Request) (err 
 
 func (s *Server) validateNotifier(rw http.ResponseWriter, req *http.Request) (err error) {
 
+	var vtype string
+	vals := req.URL.Query()
+	if nsarr, ok := vals["type"]; ok {
+		vtype = nsarr[0]
+	}
 	//apiContext := api.GetApiContext(req)
 	requestBytes, err := ioutil.ReadAll(req.Body)
 	if err != nil {
@@ -205,16 +229,16 @@ func (s *Server) validateNotifier(rw http.ResponseWriter, req *http.Request) (er
 		return err
 	}
 
-	if notifier.SlackConfig.SlackApiUrl != "" {
+	if vtype == "slack" {
 		if err := util.ValidateSlack(&notifier.SlackConfig); err != nil {
 			return fmt.Errorf("failed to validate for slack config: %v", err)
 		}
-	} else if notifier.EmailConfig.SMTPSmartHost != "" {
+	} else if vtype == "email" {
 		if err := util.ValidateEmail(&notifier.EmailConfig); err != nil {
 			return fmt.Errorf("failed to validate for email config: %v", err)
 		}
 	} else {
-
+		return fmt.Errorf("invalid type to validate: %s", vtype)
 	}
 
 	return nil
