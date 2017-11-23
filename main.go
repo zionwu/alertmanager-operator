@@ -54,13 +54,19 @@ func main() {
 			Name:   "alertmanager-url, u",
 			Usage:  "AlertManager access URL",
 			EnvVar: "ALERTMANAGER_URL",
-			Value:  "http://alertmanager2:9093",
+			Value:  "http://alertmanager:9093",
 		},
 		cli.StringFlag{
 			Name:   "alertmanager-secret-name, s",
 			Usage:  "AlertManager secret name",
 			EnvVar: "ALERTMANAGER_SECRET_NAME",
-			Value:  "alertmanager-config2",
+			Value:  "alertmanager-config",
+		},
+		cli.StringFlag{
+			Name:   "namespace, n",
+			Usage:  "Namespace the operrator is deployed",
+			EnvVar: "NAMESPACE",
+			Value:  "monitoring",
 		},
 	}
 
@@ -81,6 +87,7 @@ func RunOperator(c *cli.Context) error {
 	listenPort := c.String("listen-port")
 	cfg.ManagerUrl = c.String("alertmanager-url")
 	cfg.SecretName = c.String("alertmanager-secret-name")
+	cfg.Namespace = c.String("namespace")
 
 	var config *rest.Config
 	var err error
@@ -96,7 +103,7 @@ func RunOperator(c *cli.Context) error {
 		}
 	}
 
-	router := http.Handler(api.NewRouter(api.NewServer(config,&cfg)))
+	router := http.Handler(api.NewRouter(api.NewServer(config, &cfg)))
 	router = handlers.LoggingHandler(os.Stdout, router)
 	router = handlers.ProxyHeaders(router)
 	logrus.Infof("Alertmanager operator running on %s", listenPort)

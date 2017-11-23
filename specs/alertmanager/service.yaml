@@ -2,12 +2,12 @@ kind: Service
 apiVersion: v1
 metadata:
   labels:
-    app: alertmanager2
-  name: alertmanager2
+    app: alertmanager
+  name: alertmanager
 spec:
   type: NodePort
   selector:
-    app: alertmanager2
+    app: alertmanager
   ports:
-  - name: webui2
+  - name: amport
     port: 9093

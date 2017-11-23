@@ -1,17 +1,17 @@
 kind: Deployment
 apiVersion: extensions/v1beta1
 metadata:
-  name: alertmanager2
+  name: alertmanager
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: alertmanager2
+        app: alertmanager
     spec:
       containers:
-      - name: alertmanager2
-        image: prom/alertmanager:v0.9.1
+      - name: alertmanager
+        image: prom/alertmanager:v0.11.0
         args:
         - -config.file=/etc/alertmanager/config.yml
         - -storage.path=/alertmanager
@@ -35,5 +35,5 @@ spec:
       - emptyDir: {}
         name: data
       - secret:
-          secretName: alertmanager-config2
+          secretName: alertmanager-config
         name: config-volume

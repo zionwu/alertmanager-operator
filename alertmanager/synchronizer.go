@@ -46,7 +46,7 @@ func (s *synchronizer) Run(stopc <-chan struct{}) {
 				} else {
 					alertList := al.(*v1beta1.AlertList)
 					for _, alert := range alertList.Items {
-						if alert.State == v1beta1.AlertStateInactive {
+						if alert.State == v1beta1.AlertStateDisabled {
 							continue
 						}
 
@@ -57,7 +57,7 @@ func (s *synchronizer) Run(stopc <-chan struct{}) {
 						if state != alert.State {
 
 							//if the origin state is silenced, and current state is active, then need to remove the silence rule
-							if alert.State == v1beta1.AlertStateSilenced && state == v1beta1.AlertStateActive {
+							if alert.State == v1beta1.AlertStateSuppressed && state == v1beta1.AlertStateEnabled {
 								util.RemoveSilence(s.cfg.ManagerUrl, alert)
 							}
 
@@ -65,7 +65,7 @@ func (s *synchronizer) Run(stopc <-chan struct{}) {
 							needUpdate = true
 						}
 
-						if state == v1beta1.AlertStateSilenced || state == v1beta1.AlertStateAlerting {
+						if state == v1beta1.AlertStateSuppressed || state == v1beta1.AlertStateActive {
 							if !alert.StartsAt.Equal(a.StartsAt) {
 								alert.StartsAt = a.StartsAt
 								needUpdate = true

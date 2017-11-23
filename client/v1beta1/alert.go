@@ -19,10 +19,10 @@ const (
 	AlertName        = "alerts"
 	AlertSinguleName = "alert"
 
-	AlertStateActive   = "active"
-	AlertStateInactive = "inactive"
-	AlertStateAlerting = "alerting"
-	AlertStateSilenced = "silenced"
+	AlertStateActive     = "active"
+	AlertStateSuppressed = "suppressed"
+	AlertStateDisabled   = "disabled"
+	AlertStateEnabled    = "enabled"
 )
 
 type AlertsGetter interface {

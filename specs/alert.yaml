@@ -11,9 +11,9 @@ nodeRule:
   condition: NotReady/DiskPressure/MemoryPressure/OutOfDisk
 deploymentRule:
   unavailablePercentage: 60
-daemonSetRule:
+daemonsetRule:
   unavailablePercentage: 60
-statefulSetRule:
+statefulsetRule:
   unavailablePercentage: 60
 advancedOptions:
   groupWait: "30s"

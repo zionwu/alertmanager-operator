@@ -12,8 +12,9 @@ type Notifier struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	EmailConfig *EmailConfigSpec `json:"emailConfig,omitempty"`
-	SlackConfig *SlackConfigSpec `json:"slackConfig,omitempty"`
+	ResolveTimeout string           `json:"resolvedTimeout,omitempty"`
+	EmailConfig    *EmailConfigSpec `json:"emailConfig,omitempty"`
+	SlackConfig    *SlackConfigSpec `json:"slackConfig,omitempty"`
 	//PagerDutyConfig *PagerDutyConfigSpec `json:"pagerdutyConfig,omitempty"`
 	//TODO: check what should do with status
 	Status *NotifierStatus `json:"status,omitempty"`
@@ -74,7 +75,8 @@ type PagerDutyRecipientSpec struct {
 }
 
 type WebhookRecipientSpec struct {
-	URL string `json:"url"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
 }
 
 type SlackRecipientSpec struct {
@@ -101,8 +103,8 @@ type Alert struct {
 	RecipientID     string               `json:"recipientId, omitempty"`
 	NodeRule        *NodeRuleSpec        `json:"nodeRule, omitempty"`
 	DeploymentRule  *RuleSpec            `json:"deploymentRule, omitempty"`
-	StatefulSetRule *RuleSpec            `json:"statefulSetRule, omitempty"`
-	DaemonSetRule   *RuleSpec            `json:"daemonSetRule, omitempty"`
+	StatefulsetRule *RuleSpec            `json:"statefulsetRule, omitempty"`
+	DaemonsetRule   *RuleSpec            `json:"daemonsetRule, omitempty"`
 	AdvancedOptions *AdvancedOptionsSpec `json:"advancedOptions, omitempty"`
 	State           string               `json:"state,omitempty"`
 

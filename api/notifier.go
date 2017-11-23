@@ -41,7 +41,7 @@ func (s *Server) notifiersList(rw http.ResponseWriter, req *http.Request) (err e
 	for _, item := range notifierList.Items {
 		rn := toNotifierResource(apiContext, item)
 
-		nSecret, err := s.clientset.Core().Secrets("default").Get("rancher-notifier", metav1.GetOptions{})
+		nSecret, err := s.clientset.Core().Secrets(s.cfg.Namespace).Get("rancher-notifier", metav1.GetOptions{})
 		if err != nil {
 			logrus.Errorf("Error while getting notifier secret: %v", err)
 			return err
@@ -91,7 +91,7 @@ func (s *Server) createNotifier(rw http.ResponseWriter, req *http.Request) (err 
 		},
 		Data: data,
 	}
-	_, err = s.clientset.Core().Secrets("default").Create(secret)
+	_, err = s.clientset.Core().Secrets(s.cfg.Namespace).Create(secret)
 	if err != nil {
 		logrus.Error("Error while creating secrets for notifier CRD: %s", err)
 		return err
@@ -124,7 +124,7 @@ func (s *Server) getNotifier(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 	rn := toNotifierResource(apiContext, n)
-	nSecret, err := s.clientset.Core().Secrets("default").Get("rancher-notifier", metav1.GetOptions{})
+	nSecret, err := s.clientset.Core().Secrets(s.cfg.Namespace).Get("rancher-notifier", metav1.GetOptions{})
 	if err != nil {
 		logrus.Errorf("Error while getting notifier secret: %v", err)
 		return err
@@ -144,7 +144,7 @@ func (s *Server) deleteNotifier(rw http.ResponseWriter, req *http.Request) (err 
 	id := mux.Vars(req)["id"]
 	opt := metav1.DeleteOptions{}
 
-	err = s.clientset.Core().Secrets("default").Delete(id, &opt)
+	err = s.clientset.Core().Secrets(s.cfg.Namespace).Delete(id, &opt)
 	if err != nil {
 		logrus.Error("Error while deleting notifier CRD secret: %s", err)
 		return err
@@ -191,7 +191,7 @@ func (s *Server) updateNotifier(rw http.ResponseWriter, req *http.Request) (err 
 		Data: data,
 	}
 
-	_, err = s.clientset.Core().Secrets("default").Update(secret)
+	_, err = s.clientset.Core().Secrets(s.cfg.Namespace).Update(secret)
 	if err != nil {
 		logrus.Error("Error while updating notifier CRD secrets %s", err)
 		return err

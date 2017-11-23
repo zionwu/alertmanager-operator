@@ -65,7 +65,7 @@ func (s *Server) createAlert(rw http.ResponseWriter, req *http.Request) (err err
 		logrus.Errorf("Error while reading request body: %v", err)
 		return err
 	}
-	alert := Alert{State: "active"}
+	alert := Alert{State: v1beta1.AlertStateEnabled}
 
 	if err := json.Unmarshal(requestBytes, &alert); err != nil {
 		logrus.Errorf("Error while unmarshal the request: %v", err)
@@ -145,7 +145,7 @@ func (s *Server) deleteAlert(rw http.ResponseWriter, req *http.Request) (err err
 		return err
 	}
 
-	if alert.State != v1beta1.AlertStateInactive {
+	if alert.State != v1beta1.AlertStateDisabled {
 		return fmt.Errorf("Current state is not inactive, can not perform delete")
 	}
 
@@ -225,11 +225,11 @@ func (s *Server) deactivateAlert(rw http.ResponseWriter, req *http.Request) (err
 		return err
 	}
 
-	if alert.State != v1beta1.AlertStateActive {
+	if alert.State != v1beta1.AlertStateEnabled {
 		return fmt.Errorf("Current state is not active, can not perform deactiavte action")
 	}
 
-	alert.State = v1beta1.AlertStateInactive
+	alert.State = v1beta1.AlertStateDisabled
 
 	_, err = s.mclient.MonitoringV1().Alerts(namespace).Update(alert)
 	if err != nil {
@@ -264,11 +264,11 @@ func (s *Server) activateAlert(rw http.ResponseWriter, req *http.Request) (err e
 		return err
 	}
 
-	if alert.State != v1beta1.AlertStateInactive {
+	if alert.State != v1beta1.AlertStateDisabled {
 		return fmt.Errorf("Current state is not inactive, can not perform actiavte action")
 	}
 
-	alert.State = v1beta1.AlertStateActive
+	alert.State = v1beta1.AlertStateEnabled
 
 	_, err = s.mclient.MonitoringV1().Alerts(namespace).Update(alert)
 	if err != nil {
@@ -303,7 +303,7 @@ func (s *Server) silenceAlert(rw http.ResponseWriter, req *http.Request) (err er
 		return err
 	}
 
-	if alert.State != v1beta1.AlertStateAlerting {
+	if alert.State != v1beta1.AlertStateActive {
 		return fmt.Errorf("Current state is not alerting, can not perform slience action")
 	}
 
@@ -312,7 +312,7 @@ func (s *Server) silenceAlert(rw http.ResponseWriter, req *http.Request) (err er
 		return fmt.Errorf("Error while adding silence to AlertManager: %v", err)
 	}
 
-	alert.State = v1beta1.AlertStateSilenced
+	alert.State = v1beta1.AlertStateSuppressed
 	_, err = s.mclient.MonitoringV1().Alerts(namespace).Update(alert)
 	if err != nil {
 		logrus.Errorf("Error while setting k8s alert to silenced", err)
@@ -345,7 +345,7 @@ func (s *Server) unsilenceAlert(rw http.ResponseWriter, req *http.Request) (err 
 		return err
 	}
 
-	if alert.State != v1beta1.AlertStateSilenced {
+	if alert.State != v1beta1.AlertStateSuppressed {
 		return fmt.Errorf("Current state is not silenced, can not perform unslience action")
 	}
 
@@ -354,7 +354,7 @@ func (s *Server) unsilenceAlert(rw http.ResponseWriter, req *http.Request) (err 
 		return fmt.Errorf("Error while removing silence to AlertManager: %v", err)
 	}
 
-	alert.State = v1beta1.AlertStateAlerting
+	alert.State = v1beta1.AlertStateActive
 	_, err = s.mclient.MonitoringV1().Alerts(namespace).Update(alert)
 	if err != nil {
 		logrus.Errorf("Error while setting k8s alert to alerting", err)

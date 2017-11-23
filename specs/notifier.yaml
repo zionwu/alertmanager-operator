@@ -3,6 +3,7 @@ kind: Notifier
 metadata:
   name: notifier-email
   
+resolveTimeout: 5h
 emailConfig:
   #  smtpAuthIdentity: identity1
   smtpAuthPassword:  <secret>

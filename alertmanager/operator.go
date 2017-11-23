@@ -200,7 +200,7 @@ func (c *Operator) sync(key interface{}) error {
 		logrus.Errorf("Error while getting notifier: %v", err)
 		return err
 	}
-	nSecret, err := c.kclient.Core().Secrets("default").Get("rancher-notifier", metav1.GetOptions{})
+	nSecret, err := c.kclient.Core().Secrets(c.cfg.Namespace).Get("rancher-notifier", metav1.GetOptions{})
 	if err != nil {
 		logrus.Errorf("Error while getting notifier secret: %v", err)
 		return err
@@ -224,10 +224,16 @@ func (c *Operator) sync(key interface{}) error {
 
 	config.Global.PagerdutyURL = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
 
+	if notifier.ResolveTimeout != "" {
+		rt, err := model.ParseDuration(notifier.ResolveTimeout)
+		if err == nil {
+			config.Global.ResolveTimeout = rt
+		}
+	}
+
 	if notifier.SlackConfig != nil && notifier.SlackConfig.SlackApiUrl != "" {
 		slackApiUrl := string(nSecret.Data["slackApiUrl"])
 		config.Global.SlackAPIURL = alertconfig.Secret(slackApiUrl)
-
 	}
 
 	if notifier.EmailConfig != nil {
@@ -249,7 +255,7 @@ func (c *Operator) sync(key interface{}) error {
 		c.addRoute2Config(config, alert)
 	}
 
-	sClient := c.kclient.CoreV1().Secrets("default")
+	sClient := c.kclient.CoreV1().Secrets(c.cfg.Namespace)
 
 	configSecret, err := sClient.Get(c.cfg.SecretName, metav1.GetOptions{})
 	if err != nil {
@@ -657,7 +663,7 @@ func (c *Operator) createNotifier() error {
 		},
 		Data: map[string][]byte{},
 	}
-	_, err = c.kclient.Core().Secrets("default").Create(secret)
+	_, err = c.kclient.Core().Secrets(c.cfg.Namespace).Create(secret)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return errors.Wrapf(err, "Creating notifier secrets")
 	}

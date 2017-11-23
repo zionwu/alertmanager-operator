@@ -301,14 +301,14 @@ func GetState(alert *v1beta1.Alert, apiAlerts []*dispatch.APIAlert) (string, *di
 	for _, a := range apiAlerts {
 		if string(a.Labels["alert_id"]) == alert.Name && string(a.Labels["namespace"]) == alert.Namespace {
 			if a.Status.State == types.AlertStateSuppressed {
-				return v1beta1.AlertStateSilenced, a
+				return v1beta1.AlertStateSuppressed, a
 			} else {
-				return v1beta1.AlertStateAlerting, a
+				return v1beta1.AlertStateActive, a
 			}
 		}
 	}
 
-	return v1beta1.AlertStateActive, nil
+	return v1beta1.AlertStateEnabled, nil
 
 }
 

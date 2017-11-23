@@ -70,7 +70,7 @@ func (w *deploymentWatcher) handleDelete(obj interface{}) {
 func (w *deploymentWatcher) handleUpdate(oldObj, curObj interface{}) {
 
 	//will not check status if the state is inactive
-	if w.alert.State == v1beta1.AlertStateInactive {
+	if w.alert.State == v1beta1.AlertStateDisabled {
 		return
 	}
 

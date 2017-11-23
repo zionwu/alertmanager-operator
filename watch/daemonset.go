@@ -70,7 +70,7 @@ func (w *daemonSetWatcher) handleDelete(obj interface{}) {
 func (w *daemonSetWatcher) handleUpdate(oldObj, curObj interface{}) {
 
 	//will not check status if the state is inactive
-	if w.alert.State == v1beta1.AlertStateInactive {
+	if w.alert.State == v1beta1.AlertStateDisabled {
 		return
 	}
 
@@ -91,16 +91,16 @@ func (w *daemonSetWatcher) handleUpdate(oldObj, curObj interface{}) {
 		return
 	}
 
-	if w.alert.DaemonSetRule == nil {
+	if w.alert.DaemonsetRule == nil {
 		logrus.Errorf("The daemonset rules for %s should not be empty", w.alert.Name)
 		return
 	}
 
-	if w.alert.DaemonSetRule.UnavailablePercentage == 0 {
+	if w.alert.DaemonsetRule.UnavailablePercentage == 0 {
 		return
 	}
 
-	availableThreshold := (100 - w.alert.DaemonSetRule.UnavailablePercentage) * (curDaemonSet.Status.DesiredNumberScheduled) / 100
+	availableThreshold := (100 - w.alert.DaemonsetRule.UnavailablePercentage) * (curDaemonSet.Status.DesiredNumberScheduled) / 100
 
 	if curDaemonSet.Status.NumberAvailable <= availableThreshold {
 		logrus.Infof("%s is firing", w.alert.Description)

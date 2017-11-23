@@ -260,6 +260,10 @@ func (s *Server) checkRecipientParam(recipient *Recipient) error {
 		if recipient.WebhookRecipient.URL == "" {
 			return fmt.Errorf("webhook url can't be empty")
 		}
+
+		if recipient.WebhookRecipient.Name == "" {
+			return fmt.Errorf("webhook name can't be empty")
+		}
 	}
 
 	return nil

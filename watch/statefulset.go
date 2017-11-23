@@ -71,7 +71,7 @@ func (w *statefulSetWatcher) handleDelete(obj interface{}) {
 func (w *statefulSetWatcher) handleUpdate(oldObj, curObj interface{}) {
 
 	//will not check status if the state is inactive
-	if w.alert.State == v1beta1.AlertStateInactive {
+	if w.alert.State == v1beta1.AlertStateDisabled {
 		return
 	}
 
@@ -92,16 +92,16 @@ func (w *statefulSetWatcher) handleUpdate(oldObj, curObj interface{}) {
 		return
 	}
 
-	if w.alert.StatefulSetRule == nil {
+	if w.alert.StatefulsetRule == nil {
 		logrus.Errorf("The statefulset rules for %s should not be empty", w.alert.Name)
 		return
 	}
 
-	if w.alert.StatefulSetRule.UnavailablePercentage == 0 {
+	if w.alert.StatefulsetRule.UnavailablePercentage == 0 {
 		return
 	}
 
-	availableThreshold := (100 - w.alert.StatefulSetRule.UnavailablePercentage) * (*curStatefulSet.Spec.Replicas) / 100
+	availableThreshold := (100 - w.alert.StatefulsetRule.UnavailablePercentage) * (*curStatefulSet.Spec.Replicas) / 100
 
 	if curStatefulSet.Status.ReadyReplicas <= availableThreshold {
 		logrus.Infof("%s is firing", w.alert.Description)

@@ -16,6 +16,7 @@ import (
 type Config struct {
 	ManagerUrl string
 	SecretName string
+	Namespace  string
 }
 
 type Server struct {
@@ -35,8 +36,9 @@ type Error struct {
 
 type Notifier struct {
 	client.Resource
-	SlackConfig v1beta1.SlackConfigSpec `json:"slackConfig"`
-	EmailConfig v1beta1.EmailConfigSpec `json:"emailConfig"`
+	ResolveTimeout string                  `json:"resolveTimeout"`
+	SlackConfig    v1beta1.SlackConfigSpec `json:"slackConfig"`
+	EmailConfig    v1beta1.EmailConfigSpec `json:"emailConfig"`
 	//PagerDutyConfig v1beta1.PagerDutyConfigSpec `json:"pagerdutyConfig"`
 }
 
@@ -49,8 +51,8 @@ type Alert struct {
 	TargetID        string                      `json:"targetId"`
 	NodeRule        v1beta1.NodeRuleSpec        `json:"nodeRule"`
 	DeploymentRule  v1beta1.RuleSpec            `json:"deploymentRule"`
-	StatefulSetRule v1beta1.RuleSpec            `json:"statefulSetRule"`
-	DaemonSetRule   v1beta1.RuleSpec            `json:"daemonSetRule"`
+	StatefulsetRule v1beta1.RuleSpec            `json:"statefulsetRule"`
+	DaemonsetRule   v1beta1.RuleSpec            `json:"daemonsetRule"`
 	AdvancedOptions v1beta1.AdvancedOptionsSpec `json:"advancedOptions"`
 	Namespace       string                      `json:"namespace"`
 	RecipientID     string                      `json:"recipientId"`
@@ -127,8 +129,8 @@ func alertSchema(alert *client.Schema) {
 	state.Create = false
 	state.Update = false
 	state.Type = "enum"
-	state.Default = "active"
-	state.Options = []string{"active", "inactive", "alerting", "silenced"}
+	state.Default = "enabled"
+	state.Options = []string{"enabled", "disabled", "active", "suppressed"}
 	alert.ResourceFields["state"] = state
 
 	description := alert.ResourceFields["description"]
@@ -219,6 +221,7 @@ func toNotifierResource(apiContext *api.ApiContext, n *v1beta1.Notifier) *Notifi
 
 	rn.EmailConfig = *n.EmailConfig
 	rn.SlackConfig = *n.SlackConfig
+	rn.ResolveTimeout = n.ResolveTimeout
 	//rn.PagerDutyConfig = *n.PagerDutyConfig
 
 	rn.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("notifier", rn.Id)
@@ -231,8 +234,9 @@ func toNotifierCRD(rn *Notifier) *v1beta1.Notifier {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: rn.Id,
 		},
-		EmailConfig: &rn.EmailConfig,
-		SlackConfig: &rn.SlackConfig,
+		EmailConfig:    &rn.EmailConfig,
+		SlackConfig:    &rn.SlackConfig,
+		ResolveTimeout: rn.ResolveTimeout,
 		//PagerDutyConfig: &rn.PagerDutyConfig,
 	}
 
@@ -293,8 +297,8 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 		RecipientID:     a.RecipientID,
 		NodeRule:        *a.NodeRule,
 		DeploymentRule:  *a.DeploymentRule,
-		StatefulSetRule: *a.StatefulSetRule,
-		DaemonSetRule:   *a.DaemonSetRule,
+		StatefulsetRule: *a.StatefulsetRule,
+		DaemonsetRule:   *a.DaemonsetRule,
 		AdvancedOptions: *a.AdvancedOptions,
 		StartsAt:        a.StartsAt,
 		EndsAt:          a.EndsAt,
@@ -332,8 +336,8 @@ func toAlertCRD(ra *Alert) *v1beta1.Alert {
 		RecipientID:     ra.RecipientID,
 		NodeRule:        &ra.NodeRule,
 		DeploymentRule:  &ra.DeploymentRule,
-		StatefulSetRule: &ra.StatefulSetRule,
-		DaemonSetRule:   &ra.DaemonSetRule,
+		StatefulsetRule: &ra.StatefulsetRule,
+		DaemonsetRule:   &ra.DaemonsetRule,
 		AdvancedOptions: &ra.AdvancedOptions,
 		State:           ra.State,
 		StartsAt:        ra.StartsAt,

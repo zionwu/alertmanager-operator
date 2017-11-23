@@ -70,7 +70,7 @@ func (w *nodeWatcher) handleDelete(obj interface{}) {
 func (w *nodeWatcher) handleUpdate(oldObj, curObj interface{}) {
 
 	//will not check status if the state is inactive
-	if w.alert.State == v1beta1.AlertStateInactive {
+	if w.alert.State == v1beta1.AlertStateDisabled {
 		return
 	}
 	/*
