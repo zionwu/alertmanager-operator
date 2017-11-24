@@ -383,8 +383,8 @@ func (s *Server) checkAlertParam(alert *Alert) error {
 		return fmt.Errorf("missing TargetType")
 	}
 
-	if alert.TargetID == "" {
-		return fmt.Errorf("missing TargetType")
+	if alert.TargetType != "metric" && alert.TargetID == "" {
+		return fmt.Errorf("missing TargetId")
 	}
 
 	return nil

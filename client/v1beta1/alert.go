@@ -117,6 +117,13 @@ func (p *alerts) List(opts metav1.ListOptions) (runtime.Object, error) {
 		return nil, err
 	}
 
+	/*
+		fieldSelector, err := fields.ParseSelector(opts.FieldSelector)
+		if err != nil {
+			return nil, err
+		}
+	*/
+
 	req := p.restClient.Get().
 		Namespace(p.ns).
 		Resource(AlertName).

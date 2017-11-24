@@ -105,7 +105,7 @@ func ReloadConfiguration(url string) error {
 	//TODO: what is the wait time
 	time.Sleep(10 * time.Second)
 	resp, err := http.Post(url+"/-/reload", "text/html", nil)
-	logrus.Infof("Reload alert manager configuration")
+	logrus.Debugf("Reload  configuration for %s", url)
 	if err != nil {
 		return err
 	}

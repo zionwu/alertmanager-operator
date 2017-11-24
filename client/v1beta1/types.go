@@ -105,6 +105,7 @@ type Alert struct {
 	DeploymentRule  *RuleSpec            `json:"deploymentRule, omitempty"`
 	StatefulsetRule *RuleSpec            `json:"statefulsetRule, omitempty"`
 	DaemonsetRule   *RuleSpec            `json:"daemonsetRule, omitempty"`
+	MetricRule      *MetricRuleSpec      `json:"metricRule, omitempty"`
 	AdvancedOptions *AdvancedOptionsSpec `json:"advancedOptions, omitempty"`
 	State           string               `json:"state,omitempty"`
 
@@ -113,6 +114,11 @@ type Alert struct {
 
 	//TODO: check what should do with status
 	Status *AlertStatus `json:"status,omitempty"`
+}
+
+type MetricRuleSpec struct {
+	Expr         string `json:"expr, omitempty"`
+	HoldDuration string `json:"holdDuration, omitempty"`
 }
 
 type AdvancedOptionsSpec struct {

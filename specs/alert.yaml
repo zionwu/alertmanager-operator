@@ -15,12 +15,15 @@ daemonsetRule:
   unavailablePercentage: 60
 statefulsetRule:
   unavailablePercentage: 60
+metricRule: 
+  expr:  abc
+  holdDuration: "5m"
 advancedOptions:
   groupWait: "30s"
   groupInterval: "5m"
   repeatInterval: "4h"
 recipientId: testabc
-state: inactive/active/alerting/silenced/unsilenced
+state: disabled/enabled/active/suppressed
 startsAt: "2017-11-20T02:38:19.960315899Z"
 endsAt: "2017-11-20T02:43:19.960315899Z"
 

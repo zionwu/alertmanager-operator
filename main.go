@@ -68,6 +68,18 @@ func main() {
 			EnvVar: "NAMESPACE",
 			Value:  "monitoring",
 		},
+		cli.StringFlag{
+			Name:   "prometheus-url, p",
+			Usage:  "Prometheus access URL",
+			EnvVar: "PROMETHEUS_URL",
+			Value:  "http://prometheus-svc:9090",
+		},
+		cli.StringFlag{
+			Name:   "prometheus-configmap-name, c",
+			Usage:  "Prometheus configmap name",
+			EnvVar: "PROMETHEUS_CONFIGMAP_NAME",
+			Value:  "prometheus-rules",
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -88,6 +100,8 @@ func RunOperator(c *cli.Context) error {
 	cfg.ManagerUrl = c.String("alertmanager-url")
 	cfg.SecretName = c.String("alertmanager-secret-name")
 	cfg.Namespace = c.String("namespace")
+	cfg.PrometheusURL = c.String("prometheus-url")
+	cfg.ConfigMapName = c.String("prometheus-configmap-name")
 
 	var config *rest.Config
 	var err error

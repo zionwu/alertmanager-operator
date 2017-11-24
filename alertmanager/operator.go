@@ -50,6 +50,7 @@ type Operator struct {
 
 	synchronizer Synchronizer
 	queue        workqueue.RateLimitingInterface
+	promQueue    workqueue.RateLimitingInterface
 	watchers     map[string]watch.Watcher
 }
 
@@ -75,6 +76,7 @@ func NewOperator(config *rest.Config, cfg *alertapi.Config) (*Operator, error) {
 		mclient:   mclient,
 		crdclient: crdclient,
 		queue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "alertmanager"),
+		promQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "prometheus"),
 		cfg:       cfg,
 		watchers:  map[string]watch.Watcher{},
 	}
@@ -161,6 +163,7 @@ func (c *Operator) Run(stopc <-chan struct{}) error {
 	}
 
 	go c.worker()
+	go c.promWorker()
 	go c.alertInf.Run(stopc)
 	go c.recipentInf.Run(stopc)
 	go c.notifiertInf.Run(stopc)
@@ -192,6 +195,99 @@ func (c *Operator) processNextWorkItem() bool {
 	c.queue.AddRateLimited(key)
 
 	return true
+}
+
+func (c *Operator) promWorker() {
+	for c.processNextPromItem() {
+	}
+}
+
+func (c *Operator) processNextPromItem() bool {
+	key, quit := c.promQueue.Get()
+	if quit {
+		return false
+	}
+	defer c.promQueue.Done(key)
+
+	err := c.syncProm(key)
+	if err == nil {
+		c.promQueue.Forget(key)
+		return true
+	}
+
+	utilruntime.HandleError(errors.Wrap(err, fmt.Sprintf("Sync %q failed", key)))
+	c.promQueue.AddRateLimited(key)
+
+	return true
+}
+
+func (c *Operator) syncProm(key interface{}) error {
+
+	//fs := fields.OneTermEqualSelector("targetType", "metric").String()
+	al, err := c.mclient.MonitoringV1().Alerts(metav1.NamespaceAll).List(metav1.ListOptions{})
+	if err != nil {
+		logrus.Errorf("Error while listing alert: %v", err)
+		return err
+	}
+
+	config, err := c.kclient.Core().ConfigMaps(c.cfg.Namespace).Get(c.cfg.ConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		logrus.Errorf("Error while getting configmap: %v", err)
+		return err
+	}
+
+	rules := []Rule{}
+	alertList := al.(*v1beta1.AlertList)
+	for _, alert := range alertList.Items {
+		if alert.TargetType != "metric" {
+			continue
+		}
+
+		holdDuration, _ := model.ParseDuration(alert.MetricRule.HoldDuration)
+		labels := map[string]string{}
+		labels["alert_id"] = alert.Namespace
+		labels["severity"] = alert.Name
+		labels["description"] = alert.Description
+		labels["target_type"] = alert.TargetType
+		labels["namespace"] = alert.Namespace
+
+		rule := Rule{
+			Alert:  alert.Description,
+			Expr:   alert.MetricRule.Expr,
+			For:    holdDuration,
+			Labels: labels,
+		}
+		rules = append(rules, rule)
+	}
+
+	rg := RuleGroup{
+		Name:  "rancher-rules",
+		Rules: rules,
+	}
+	ruleGroups := []RuleGroup{}
+	ruleGroups = append(ruleGroups, rg)
+
+	rgs := RuleGroups{
+		Groups: ruleGroups,
+	}
+
+	ruleStr, err := yaml.Marshal(rgs)
+	logrus.Debugf("after updating rules: %s", string(ruleStr))
+	if err != nil {
+		return err
+	}
+
+	config.Data["rancher-rules.yaml"] = string(ruleStr)
+	config, err = c.kclient.Core().ConfigMaps(c.cfg.Namespace).Update(config)
+	if err != nil {
+		logrus.Errorf("Error while updating configmap: %v", err)
+		return err
+	}
+
+	//reload prometheus configuration
+	go util.ReloadConfiguration(c.cfg.PrometheusURL)
+
+	return nil
 }
 
 func (c *Operator) sync(key interface{}) error {
@@ -347,9 +443,13 @@ func (c *Operator) handleAlertAdd(obj interface{}) {
 	logrus.Debugf("Add for alert: %v", alert)
 
 	//TODO: should we move watcher into sync?
-	watcher := watch.NewWatcher(alert, c.kclient, c.cfg)
-	c.watchers[alert.Name] = watcher
-	go watcher.Watch()
+	if alert.TargetType != "metric" {
+		watcher := watch.NewWatcher(alert, c.kclient, c.cfg)
+		c.watchers[alert.Name] = watcher
+		go watcher.Watch()
+	} else {
+		c.promQueue.Add(alert)
+	}
 
 	c.queue.Add(alert)
 }
@@ -363,9 +463,12 @@ func (c *Operator) handleAlertDelete(obj interface{}) {
 
 	logrus.Debugf("Delete for alert: %v", alert)
 
-	c.watchers[alert.Name].Stop()
-	delete(c.watchers, alert.Name)
-
+	if alert.TargetType != "metric" {
+		c.watchers[alert.Name].Stop()
+		delete(c.watchers, alert.Name)
+	} else {
+		c.promQueue.Add(alert)
+	}
 	c.queue.Add(alert)
 
 }
@@ -389,8 +492,11 @@ func (c *Operator) handleAlertUpdate(oldObj, curObj interface{}) {
 		return
 	}
 
-	c.watchers[alert.Name].UpdateAlert(alert)
-
+	if alert.TargetType != "metric" {
+		c.watchers[alert.Name].UpdateAlert(alert)
+	} else {
+		c.promQueue.Add(alert)
+	}
 	logrus.Infof("Update for alert: %v", alert)
 
 	c.queue.Add(alert)
@@ -670,4 +776,26 @@ func (c *Operator) createNotifier() error {
 
 	return nil
 
+}
+
+// RuleGroups is a set of rule groups that are typically exposed in a file.
+type RuleGroups struct {
+	Groups []RuleGroup `yaml:"groups"`
+}
+
+// RuleGroup is a list of sequentially evaluated recording and alerting rules.
+type RuleGroup struct {
+	Name     string         `yaml:"name"`
+	Interval model.Duration `yaml:"interval,omitempty"`
+	Rules    []Rule         `yaml:"rules"`
+}
+
+// Rule describes an alerting or recording rule.
+type Rule struct {
+	Record      string            `yaml:"record,omitempty"`
+	Alert       string            `yaml:"alert,omitempty"`
+	Expr        string            `yaml:"expr"`
+	For         model.Duration    `yaml:"for,omitempty"`
+	Labels      map[string]string `yaml:"labels,omitempty"`
+	Annotations map[string]string `yaml:"annotations,omitempty"`
 }

@@ -14,9 +14,11 @@ import (
 )
 
 type Config struct {
-	ManagerUrl string
-	SecretName string
-	Namespace  string
+	ManagerUrl    string
+	SecretName    string
+	Namespace     string
+	ConfigMapName string
+	PrometheusURL string
 }
 
 type Server struct {
@@ -54,6 +56,7 @@ type Alert struct {
 	StatefulsetRule v1beta1.RuleSpec            `json:"statefulsetRule"`
 	DaemonsetRule   v1beta1.RuleSpec            `json:"daemonsetRule"`
 	AdvancedOptions v1beta1.AdvancedOptionsSpec `json:"advancedOptions"`
+	MetricRule      v1beta1.MetricRuleSpec      `json:"metricRule"`
 	Namespace       string                      `json:"namespace"`
 	RecipientID     string                      `json:"recipientId"`
 	StartsAt        time.Time                   `json:"startsAt,omitempty"`
@@ -142,7 +145,7 @@ func alertSchema(alert *client.Schema) {
 	targetType.Create = true
 	targetType.Update = false
 	targetType.Type = "enum"
-	targetType.Options = []string{"pod", "node", "deployment", "daemonset", "statefulset"}
+	targetType.Options = []string{"pod", "node", "deployment", "daemonset", "statefulset", "metric"}
 	alert.ResourceFields["targetType"] = targetType
 
 	targetId := alert.ResourceFields["targetId"]
@@ -169,10 +172,10 @@ func alertSchema(alert *client.Schema) {
 		"unsilence": {
 			Output: "alert",
 		},
-		"activate": {
+		"enable": {
 			Output: "alert",
 		},
-		"deactivate": {
+		"disable": {
 			Output: "alert",
 		},
 	}
@@ -299,6 +302,7 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 		DeploymentRule:  *a.DeploymentRule,
 		StatefulsetRule: *a.StatefulsetRule,
 		DaemonsetRule:   *a.DaemonsetRule,
+		MetricRule:      *a.MetricRule,
 		AdvancedOptions: *a.AdvancedOptions,
 		StartsAt:        a.StartsAt,
 		EndsAt:          a.EndsAt,
@@ -316,8 +320,8 @@ func toAlertResource(apiContext *api.ApiContext, a *v1beta1.Alert) *Alert {
 	ra.Resource.Links["update"] = apiContext.UrlBuilder.ReferenceByIdLink("alert", ra.Id)
 	ra.Resource.Links["remove"] = apiContext.UrlBuilder.ReferenceByIdLink("alert", ra.Id) + "?namespace=" + a.Namespace
 	ra.Resource.Links["recipient"] = apiContext.UrlBuilder.ReferenceByIdLink("recipient", ra.RecipientID) + "?namespace=" + a.Namespace
-	ra.Actions["activate"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=activate&" + "namespace=" + a.Namespace
-	ra.Actions["deactivate"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=deactivate&" + "namespace=" + a.Namespace
+	ra.Actions["enable"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=enable&" + "namespace=" + a.Namespace
+	ra.Actions["disable"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=disable&" + "namespace=" + a.Namespace
 	ra.Actions["silence"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=silence&" + "namespace=" + a.Namespace
 	ra.Actions["unsilence"] = apiContext.UrlBuilder.ReferenceLink(ra.Resource) + "?action=unsilence&" + "namespace=" + a.Namespace
 
@@ -338,6 +342,7 @@ func toAlertCRD(ra *Alert) *v1beta1.Alert {
 		DeploymentRule:  &ra.DeploymentRule,
 		StatefulsetRule: &ra.StatefulsetRule,
 		DaemonsetRule:   &ra.DaemonsetRule,
+		MetricRule:      &ra.MetricRule,
 		AdvancedOptions: &ra.AdvancedOptions,
 		State:           ra.State,
 		StartsAt:        ra.StartsAt,
