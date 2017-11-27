@@ -128,7 +128,7 @@ func NewOperator(config *rest.Config, cfg *alertapi.Config) (*Operator, error) {
 
 // Run the controller.
 func (c *Operator) Run(stopc <-chan struct{}) error {
-	//defer c.queue.ShutDown()
+	defer c.queue.ShutDown()
 
 	errChan := make(chan error)
 	go func() {

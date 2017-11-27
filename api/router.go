@@ -85,10 +85,10 @@ func NewRouter(s *Server) *mux.Router {
 	r.Methods(http.MethodGet).Path("/v5/namespaces").Handler(f(schemas, s.namespaceList))
 
 	alertActions := map[string]http.Handler{
-		"activate":   f(schemas, s.activateAlert),
-		"deactivate": f(schemas, s.deactivateAlert),
-		"silence":    f(schemas, s.silenceAlert),
-		"unsilence":  f(schemas, s.unsilenceAlert),
+		"enable":    f(schemas, s.activateAlert),
+		"disable":   f(schemas, s.deactivateAlert),
+		"silence":   f(schemas, s.silenceAlert),
+		"unsilence": f(schemas, s.unsilenceAlert),
 	}
 	for name, actions := range alertActions {
 		r.Methods(http.MethodPost).Path("/v5/alerts/{id}").Queries("action", name).Handler(actions)
