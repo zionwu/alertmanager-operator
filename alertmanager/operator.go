@@ -245,8 +245,8 @@ func (c *Operator) syncProm(key interface{}) error {
 
 		holdDuration, _ := model.ParseDuration(alert.MetricRule.HoldDuration)
 		labels := map[string]string{}
-		labels["alert_id"] = alert.Namespace
-		labels["severity"] = alert.Name
+		labels["alert_id"] = alert.Name
+		labels["severity"] = alert.Severity
 		labels["description"] = alert.Description
 		labels["target_type"] = alert.TargetType
 		labels["namespace"] = alert.Namespace
